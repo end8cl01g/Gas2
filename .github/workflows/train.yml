@@ -25,7 +25,22 @@ jobs:
       - uses: Swatinem/rust-cache@v2
 
       - name: Train baseline weights
-        run: cargo run -p gas2-train --release
+        run: |
+          set -o pipefail
+          cargo run -p gas2-train --release 2>&1 | tee /tmp/train.log
+
+      - name: Report on failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          {
+            echo "Train weights 失敗（自動貼上）"
+            echo '```'
+            tail -c 20000 /tmp/train.log 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g'
+            echo '```'
+          } > /tmp/body.md
+          gh issue create --title "🚨 Train weights 失敗 @ ${GITHUB_SHA::7}" --body-file /tmp/body.md || true
 
       - name: Commit trained weights (if changed)
         run: |

@@ -181,21 +181,41 @@ fn main() {
         vx.len()
     );
 
+    // 診斷基線：只預測目標均值時的 MSE（網絡若無學習，會收斂到此值）
+    let mut t_mean = [0.0f32; OUTPUT_SCORES];
+    for t in &tt {
+        for (m, v) in t_mean.iter_mut().zip(t.iter()) {
+            *m += v / tt.len() as f32;
+        }
+    }
+    let mean_mse = tt
+        .iter()
+        .map(|t| {
+            t.iter()
+                .zip(t_mean.iter())
+                .map(|(&v, &m)| (v - m) * (v - m))
+                .sum::<f32>()
+        })
+        .sum::<f32>()
+        / tt.len() as f32
+        / OUTPUT_SCORES as f32;
+    println!("均值基線 MSE = {mean_mse:.5}（學習應顯著低於此值）");
+
     let mut rng = Lcg(TRAIN_SEED);
     let mut nn = Mlp::new(INPUT_FEATURES, 24, 12, OUTPUT_SCORES);
     init_weights(&mut nn, &mut rng);
 
-    let epochs = 600usize;
+    let epochs = 900usize;
     let batch = 64usize;
     let mut idx: Vec<usize> = (0..tx.len()).collect();
     let mut i = 0usize;
     for epoch in 0..epochs {
-        let lr = if epoch < 300 {
-            0.06
-        } else if epoch < 500 {
-            0.02
+        let lr = if epoch < 500 {
+            0.015
+        } else if epoch < 800 {
+            0.006
         } else {
-            0.008
+            0.002
         };
         rng.shuffle(&mut idx);
         let mut k = 0;
@@ -220,6 +240,41 @@ fn main() {
 
     let val = nn.mse_on(&vx, &vt);
     println!("最終驗證集 MSE = {val:.5}");
+    // 逐維診斷
+    for (dim, name) in [
+        "basePush",
+        "coreControl",
+        "balanceSkill",
+        "overheadPress",
+        "compressionPower",
+    ]
+    .iter()
+    .enumerate()
+    {
+        let mut se = 0.0;
+        let mut ve = 0.0;
+        for (x, t) in vx.iter().zip(vt.iter()) {
+            let y = nn.infer(x);
+            let e = y[dim] - t[dim];
+            se += e * e;
+            ve += (t[dim] - t_mean[dim]) * (t[dim] - t_mean[dim]);
+        }
+        println!(
+            "  {:<17} mse={:.5}  (var={:.5}  R2={:.3})",
+            name,
+            se / vx.len() as f32,
+            ve / vx.len() as f32,
+            1.0 - se / ve
+        );
+    }
+    for i in 0..3 {
+        let y = nn.infer(&vx[i]);
+        println!(
+            "  樣本{i}: 預測={:.3?} 目標={:.3?}",
+            y,
+            vt[i].map(|v| (v * 1000.0).round() / 1000.0)
+        );
+    }
     if val > MSE_THRESHOLD {
         eprintln!("警告：MSE 高於門檻 {MSE_THRESHOLD}，請檢查訓練流程");
         std::process::exit(1);

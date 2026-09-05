@@ -138,7 +138,7 @@ fn init_weights(nn: &mut Mlp, rng: &mut Lcg) {
     }
 }
 
-const VAL_SEED: u64 = 20_260_905;
+const VAL_SEED: u64 = 20_260_905; // 固定驗證集，供 --check 回歸比對
 const TRAIN_SEED: u64 = 42;
 const MSE_THRESHOLD: f32 = 0.01;
 

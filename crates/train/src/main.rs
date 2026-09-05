@@ -190,7 +190,12 @@ fn main() {
     }
     let mean_mse = tt
         .iter()
-        .map(|t| t.iter().zip(t_mean.iter()).map(|(&v, &m)| (v - m) * (v - m)).sum::<f32>())
+        .map(|t| {
+            t.iter()
+                .zip(t_mean.iter())
+                .map(|(&v, &m)| (v - m) * (v - m))
+                .sum::<f32>()
+        })
         .sum::<f32>()
         / tt.len() as f32
         / OUTPUT_SCORES as f32;
@@ -237,7 +242,11 @@ fn main() {
     println!("最終驗證集 MSE = {val:.5}");
     // 逐維診斷
     for (dim, name) in [
-        "basePush", "coreControl", "balanceSkill", "overheadPress", "compressionPower",
+        "basePush",
+        "coreControl",
+        "balanceSkill",
+        "overheadPress",
+        "compressionPower",
     ]
     .iter()
     .enumerate()

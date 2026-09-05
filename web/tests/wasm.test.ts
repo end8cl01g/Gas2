@@ -15,7 +15,24 @@ type EngineLike = {
 
 const pkg = wasmPkg as unknown as Record<string, unknown>;
 const EngineCtor = pkg.Engine as unknown as new () => EngineLike;
-const initFn = (pkg.default ?? pkg.initSync) as (() => Promise<unknown>) | (() => unknown);
+
+// 相容三種 init 匯出形態：
+// 1) 本地 stub：ESM default 為函式
+// 2) wasm-bindgen nodejs（CJS 經 interop）：namespace.default = exports 物件，
+//    其 .default 為非同步 init、.initSync 為同步 init
+function resolveInit(): () => unknown {
+  const d = pkg.default;
+  if (typeof d === 'function') return d as () => unknown;
+  if (d && typeof d === 'object') {
+    const o = d as Record<string, unknown>;
+    if (typeof o.default === 'function') return o.default as () => unknown;
+    if (typeof o.initSync === 'function') return o.initSync as () => unknown;
+  }
+  if (typeof pkg.initSync === 'function') return pkg.initSync as () => unknown;
+  throw new Error('無法解析 wasm init 函式');
+}
+
+const initFn = resolveInit();
 
 beforeAll(async () => {
   await initFn();

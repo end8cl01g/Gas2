@@ -1,0 +1,20 @@
+{
+  "name": "PTH 倒立教練",
+  "short_name": "PTH教練",
+  "description": "Press to Handstand 個人化訓練路徑（瀏覽器本地神經網絡推論）",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b1220",
+  "theme_color": "#0b1220",
+  "icons": [
+    { "src": "./icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    {
+      "src": "./icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

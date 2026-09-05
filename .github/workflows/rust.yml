@@ -26,10 +26,37 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: Clippy (deny warnings)
-        run: cargo clippy --workspace --all-targets -- -D warnings
+        run: |
+          set -o pipefail
+          cargo clippy --workspace --all-targets -- -D warnings 2>&1 | tee /tmp/clippy.log
 
       - name: Unit & integration tests
-        run: cargo test --workspace
+        run: |
+          set -o pipefail
+          cargo test --workspace 2>&1 | tee /tmp/test.log
+
+      - name: Report diagnostics to PR on failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          {
+            echo "CI 失敗診斷（自動貼上）"
+            for f in /tmp/clippy.log /tmp/test.log; do
+              [ -f "$f" ] || continue
+              echo
+              echo "### $f"
+              echo '```'
+              tail -c 6000 "$f"
+              echo '```'
+            done
+          } > /tmp/body.md
+          if [ -n "$PR" ]; then
+            gh pr comment "$PR" --body-file /tmp/body.md || true
+          else
+            gh issue create --title "CI diagnostics @ ${GITHUB_SHA::7}" --body-file /tmp/body.md || true
+          fi
 
       - name: Baseline weights regression check
         run: cargo run -p gas2-train -- --check

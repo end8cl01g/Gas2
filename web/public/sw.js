@@ -1,6 +1,6 @@
 // PTH 倒立教練 — runtime service worker（stale-while-revalidate）
 // 全部資源皆為同源靜態檔，第一次造訪後即可離線查看課表。
-const CACHE = 'pth-runtime-v1';
+const CACHE = 'pth-runtime-v2'; // 版本號變更 → activate 時清除舊快取（避免升級後仍看到舊頁）
 
 self.addEventListener('install', () => {
   self.skipWaiting();
@@ -32,6 +32,8 @@ self.addEventListener('fetch', (e) => {
           return res;
         })
         .catch(() => cached);
+      // 頁面導覽（index.html）走 network-first，確保新部署後重新整理就是新版；資源檔仍 stale-while-revalidate
+      if (req.mode === 'navigate') return network;
       return cached || network;
     })()
   );

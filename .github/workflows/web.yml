@@ -11,6 +11,7 @@ permissions:
   contents: read
   pages: write
   id-token: write
+  issues: write
 
 concurrency:
   group: pages
@@ -106,6 +107,17 @@ jobs:
         run: npx playwright install --with-deps chromium
         working-directory: web
 
+      - name: Wait for Pages CDN to serve the new build
+        run: |
+          URL="${{ needs.deploy.outputs.url }}"
+          for i in $(seq 1 12); do
+            code="$(curl -s -o /dev/null -w '%{http_code}' -H 'Cache-Control: no-cache' "$URL")"
+            echo "attempt $i: HTTP $code"
+            [ "$code" = "200" ] && exit 0
+            sleep 10
+          done
+          echo "::warning::Pages 仍未回 200，繼續嘗試煙測"
+
       - name: Smoke test deployed site (retry x2)
         id: smoke
         working-directory: web
@@ -120,6 +132,17 @@ jobs:
             [ "$ok" = "1" ] && break
           done
           exit $((1 - ok))
+
+      - name: Upload Playwright report on failure
+        if: failure() && steps.smoke.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            web/test-results
+            web/playwright-report
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Open issue on smoke failure (closed-loop feedback)
         if: failure() && steps.smoke.outcome == 'failure'

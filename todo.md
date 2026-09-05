@@ -117,7 +117,7 @@ L0 腳手架：cargo workspace、Vite TS 模板、Actions workflow、CI 綠燈�
 - [x] 修 bug：回報疼痛／過難的 `force_deload` 先前只出現在說明文字，課表沒減載 → 現在從下一週（錨點週）起重算並實際減組數
 - [x] 微調涵蓋全部 8 維；舊版 5 維權重載入被拒 → 前端自動重置基線並重算課表（localStorage／匯入皆處理）
 - [x] 前端：劑量參數條、預計升階／強制減載徽章、訓練量係數、預設跳到下一週；vitest 新增 3 個案例
-- [ ] CI：Rust 測試（沙盒無 Rust，靠 CI）→ Train workflow 重訓正式權重（PR 內附 numpy 移植訓練的權重，val MSE 0.00055）
+- [ ] CI：Rust 測試（沙盒無 Rust，靠 CI；Web CI 已綠）→ Train workflow 重訓正式權重（PR 內附 numpy 移植訓練的權重，val MSE 0.00055）
 
 ### M7 驗收 ⬜（待 M6 解鎖後執行）
 - [ ] 手機實機完整走一遍 L1→L6

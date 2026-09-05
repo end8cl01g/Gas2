@@ -209,7 +209,12 @@ fn main() {
     let wnorm = |w: &[Vec<f32>]| w.iter().flatten().map(|v| v * v).sum::<f32>().sqrt();
     println!("樣本0 x={:.3?}", tx[0]);
     println!("樣本0 t={:.3?}", tt[0]);
-    println!("init ||w1||={:.4} ||w2||={:.4} ||w3||={:.4}", wnorm(&nn.w1), wnorm(&nn.w2), wnorm(&nn.w3));
+    println!(
+        "init ||w1||={:.4} ||w2||={:.4} ||w3||={:.4}",
+        wnorm(&nn.w1),
+        wnorm(&nn.w2),
+        wnorm(&nn.w3)
+    );
 
     let epochs = 900usize;
     let batch = 64usize;
@@ -238,11 +243,25 @@ fn main() {
                 let mut a1 = 0usize;
                 let mut n = 0usize;
                 for x in tx.iter().take(200) {
-                    let h1v: Vec<f32> = nn.w1
+                    let h1v: Vec<f32> = nn
+                        .w1
                         .iter()
                         .zip(nn.b1.iter())
-                        .map(|(row, &bi)| row.iter().zip(x.iter()).map(|(&wi, &xi)| wi * xi).sum::<f32>() + bi)
-                        .map(|v| if v > 0.0 { a1 += 1; v } else { 0.0 })
+                        .map(|(row, &bi)| {
+                            row.iter()
+                                .zip(x.iter())
+                                .map(|(&wi, &xi)| wi * xi)
+                                .sum::<f32>()
+                                + bi
+                        })
+                        .map(|v| {
+                            if v > 0.0 {
+                                a1 += 1;
+                                v
+                            } else {
+                                0.0
+                            }
+                        })
                         .collect();
                     let _ = &h1v;
                     n += nn.w1.len();

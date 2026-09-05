@@ -65,26 +65,27 @@ fn expert_scores(a: &Assessment, rng: &mut Lcg) -> [f32; OUTPUT_SCORES] {
 }
 
 /// 依「潛在運動能力 u」採樣合成使用者（欄位間有相關性）
+fn jitter(rng: &mut Lcg, u: f32, lo: f32, hi: f32, spread: f32) -> f32 {
+    let base = lo + (hi - lo) * u;
+    rng.range(base - spread, base + spread).clamp(lo, hi)
+}
+
 fn sample_user(rng: &mut Lcg) -> Assessment {
     let u = rng.next_f32(); // 0=新手 … 1=高手
-    let jitter = |lo: f32, hi: f32, spread: f32| -> f32 {
-        let base = lo + (hi - lo) * u;
-        rng.range(base - spread, base + spread).clamp(lo, hi)
-    };
-    let shoulder_mobility = jitter(0.0, 5.0, 1.2).round() as u8;
-    let wrist_mobility = jitter(0.0, 5.0, 1.2).round() as u8;
-    let plank_sec = jitter(10.0, 150.0, 30.0).round() as u16;
-    let hollow_sec = jitter(5.0, 100.0, 25.0).round() as u16;
-    let pushup_reps = jitter(1.0, 45.0, 10.0).round() as u8;
-    let pike_pushup_reps = jitter(0.0, 18.0, 5.0).round() as u8;
-    let wall_walk_reps = jitter(0.0, 9.0, 3.0).round() as u8;
-    let wall_hs_hold_sec = jitter(0.0, 110.0, 30.0).round() as u16;
-    let wall_hspu_reps = jitter(0.0, 10.0, 3.0).round() as u8;
+    let shoulder_mobility = jitter(rng, u, 0.0, 5.0, 1.2).round() as u8;
+    let wrist_mobility = jitter(rng, u, 0.0, 5.0, 1.2).round() as u8;
+    let plank_sec = jitter(rng, u, 10.0, 150.0, 30.0).round() as u16;
+    let hollow_sec = jitter(rng, u, 5.0, 100.0, 25.0).round() as u16;
+    let pushup_reps = jitter(rng, u, 1.0, 45.0, 10.0).round() as u8;
+    let pike_pushup_reps = jitter(rng, u, 0.0, 18.0, 5.0).round() as u8;
+    let wall_walk_reps = jitter(rng, u, 0.0, 9.0, 3.0).round() as u8;
+    let wall_hs_hold_sec = jitter(rng, u, 0.0, 110.0, 30.0).round() as u16;
+    let wall_hspu_reps = jitter(rng, u, 0.0, 10.0, 3.0).round() as u8;
     let height_cm = rng.range(155.0, 190.0);
     let bw_ratio = rng.range(0.32, 0.62) + 0.06 * (1.0 - u);
     let bodyweight_kg = (bw_ratio * height_cm).clamp(40.0, 130.0);
     let days_per_week = rng.range(2.0, 6.0).round() as u8;
-    let experience = jitter(0.0, 3.0, 1.0).round().clamp(0.0, 3.0) as u8;
+    let experience = jitter(rng, u, 0.0, 3.0, 1.0).round().clamp(0.0, 3.0) as u8;
     Assessment {
         shoulder_mobility,
         wrist_mobility,
@@ -114,18 +115,19 @@ fn gen_dataset(n: usize, seed: u64) -> (Vec<[f32; INPUT_FEATURES]>, Vec<[f32; OU
     (xs, ts)
 }
 
-fn init_weights(nn: &mut Mlp, rng: &mut Lcg) {
-    let fill = |rows: &mut Vec<Vec<f32>>, fan_in: usize| {
-        let k = 1.0 / (fan_in as f32).sqrt();
-        for row in rows.iter_mut() {
-            for v in row.iter_mut() {
-                *v = rng.range(-k, k);
-            }
+fn fill_gaussian(rng: &mut Lcg, rows: &mut Vec<Vec<f32>>, fan_in: usize) {
+    let k = 1.0 / (fan_in as f32).sqrt();
+    for row in rows.iter_mut() {
+        for v in row.iter_mut() {
+            *v = rng.range(-k, k);
         }
-    };
-    fill(&mut nn.w1, nn.arch[0]);
-    fill(&mut nn.w2, nn.arch[1]);
-    fill(&mut nn.w3, nn.arch[2]);
+    }
+}
+
+fn init_weights(nn: &mut Mlp, rng: &mut Lcg) {
+    fill_gaussian(rng, &mut nn.w1, nn.arch[0]);
+    fill_gaussian(rng, &mut nn.w2, nn.arch[1]);
+    fill_gaussian(rng, &mut nn.w3, nn.arch[2]);
     for v in nn
         .b1
         .iter_mut()

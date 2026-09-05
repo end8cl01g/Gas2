@@ -5,9 +5,7 @@
 //! 2. 每週每項評分變動上限：上調 +0.12、下調 −0.15
 //! 3. 評分本身夾限 [0.02, 0.98]，課表由規劃器硬約束生成
 
-use crate::model::{
-    ChangeNote, Focus, PainArea, Scores, WeeklyLog, INPUT_FEATURES, OUTPUT_SCORES,
-};
+use crate::model::{ChangeNote, Focus, PainArea, Scores, WeeklyLog, INPUT_FEATURES, OUTPUT_SCORES};
 use crate::nn::Mlp;
 use crate::planner::{self, STAGES};
 

@@ -1,4 +1,4 @@
-//! 手寫多層感知器（MLP）：12 → 16 → 8 → 5，ReLU 隱層、Sigmoid 輸出。
+//! 手寫多層感知器（MLP）：12 → 24 → 12 → 5，ReLU 隱層、Sigmoid 輸出。
 //! 含前向推論、完整反向傳播（離線訓練用）、僅輸出層微調（線上用）。
 
 use serde::{Deserialize, Serialize};

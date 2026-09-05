@@ -182,15 +182,21 @@ fn main() {
     );
 
     let mut rng = Lcg(TRAIN_SEED);
-    let mut nn = Mlp::new(INPUT_FEATURES, 16, 8, OUTPUT_SCORES);
+    let mut nn = Mlp::new(INPUT_FEATURES, 24, 12, OUTPUT_SCORES);
     init_weights(&mut nn, &mut rng);
 
-    let epochs = 400usize;
+    let epochs = 600usize;
     let batch = 64usize;
     let mut idx: Vec<usize> = (0..tx.len()).collect();
     let mut i = 0usize;
     for epoch in 0..epochs {
-        let lr = if epoch < 200 { 0.08 } else { 0.02 };
+        let lr = if epoch < 300 {
+            0.06
+        } else if epoch < 500 {
+            0.02
+        } else {
+            0.008
+        };
         rng.shuffle(&mut idx);
         let mut k = 0;
         while k < idx.len() {
@@ -233,7 +239,7 @@ mod tests {
         let (tx, tt) = gen_dataset(800, 7);
         let (vx, vt) = gen_dataset(300, 8);
         let mut rng = Lcg(9);
-        let mut nn = Mlp::new(INPUT_FEATURES, 16, 8, OUTPUT_SCORES);
+        let mut nn = Mlp::new(INPUT_FEATURES, 24, 12, OUTPUT_SCORES);
         init_weights(&mut nn, &mut rng);
         let before = nn.mse_on(&vx, &vt);
         for _ in 0..40 {

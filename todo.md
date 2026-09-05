@@ -102,9 +102,10 @@ L0 腳手架：cargo workspace、Vite TS 模板、Actions workflow、CI 綠燈�
 ### M6 CI/CD 閉環 🔶（阻塞：GitHub 權限）
 - [x] workflow 檔案撰寫完成（rust.yml / web.yml / toolchain-export.yml）
 - [ ] **等待使用者重連 GitHub（需 workflows 權限）** → 推送 workflows
-- [x] workflows 已成功推送並運行（workflows 權限已恢復）
-- [ ] Rust CI 收口中（fmt ✅ → clippy 修復中 → tests 待驗）；Web CI/CD PR 側已全綠
-- [ ] CI 綠燈後 merge → toolchain 匯出 → 本地訓練真權重 → 提交
+- [x] workflows 已成功推送並運行；Rust CI 全綠（fmt/clippy/test/權重檢查/wasm 編譯）；Web CI/CD PR 側全綠
+- [x] PR #1 已 merge 進 main；CI on main：Rust CI ✅
+- [x] 真權重已由 Train workflow 在 runner 訓練並自動提交 main（修了兩個根因：wasm-bindgen 資產名、自寫 LCG 的不動點陷阱→改 SplitMix64）
+- [ ] **唯一手動步驟：倉庫 Settings → Pages → Source 選 GitHub Actions**（App 無權建立 Pages site）→ 之後 deploy→煙測 閉環即通
 - [ ] merge main：自動部署 Pages → 線上煙測（Playwright）→ 失敗自動開 issue
 - [ ] README 徽章生效
 

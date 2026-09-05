@@ -37,7 +37,6 @@ impl Engine {
             plan: None,
         }
     }
-
     /// 載入 localStorage 保存的（可能已微調過的）權重
     pub fn load_weights(&mut self, json: &str) -> Result<(), JsError> {
         let nn = Mlp::from_json(json).map_err(to_js_value_err)?;
@@ -50,9 +49,14 @@ impl Engine {
         self.nn.to_json()
     }
 
-    /// 重置回基線權重
+    /// 重置回基線權重；若已有體測，則以基線權重重算評分與課表
     pub fn reset_weights(&mut self) {
         self.nn = Mlp::from_json(BASELINE_WEIGHTS_JSON).expect("baseline weights valid");
+        if let Some(a) = self.assessment.clone() {
+            let scores = Scores::from_array(self.nn.infer(&a.features())).clamped();
+            self.plan = Some(planner::build_plan(&a, &scores));
+            self.scores = Some(scores);
+        }
     }
 
     pub fn has_assessment(&self) -> bool {
@@ -109,5 +113,11 @@ impl Engine {
             force_deload: r.force_deload,
         };
         Ok(serde_json::to_string(&resp).expect("RecalibrateResponse serializes"))
+    }
+}
+
+impl Default for Engine {
+    fn default() -> Self {
+        Self::new()
     }
 }

@@ -119,10 +119,12 @@ export function App() {
   }
 
   const lastLog = state.logs.length > 0 ? state.logs[state.logs.length - 1] : null;
+  const plan = state.plan as Plan;
+  const nextLogWeek = lastLog ? Math.min(lastLog.weekIndex + 1, plan.totalWeeks) : 1;
   return (
     <div>
       <PlanView
-        plan={state.plan as Plan}
+        plan={plan}
         changes={changes}
         onDismissChanges={() => setChanges(null)}
         onOpenLog={() => setLogOpen(true)}
@@ -130,18 +132,10 @@ export function App() {
         onReassess={() => setScreen('wizard')}
         loggedWeeks={state.logs.map((l) => l.weekIndex)}
       />
-      {logOpen && lastLog ? (
+      {logOpen ? (
         <LogSheet
-          weekIndex={Math.min(lastLog.weekIndex + 1, (state.plan as Plan).totalWeeks)}
-          defaultPlanned={(state.plan as Plan).summary.sessionsPerWeek}
-          onSubmit={handleLog}
-          onClose={() => setLogOpen(false)}
-        />
-      ) : null}
-      {logOpen && !lastLog ? (
-        <LogSheet
-          weekIndex={1}
-          defaultPlanned={(state.plan as Plan).summary.sessionsPerWeek}
+          weekIndex={nextLogWeek}
+          defaultPlanned={plan.summary.sessionsPerWeek}
           onSubmit={handleLog}
           onClose={() => setLogOpen(false)}
         />

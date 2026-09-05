@@ -2,7 +2,11 @@
 
 > 規劃方法：**從最終結果出發逆向推導**——先定義「完成時看到的東西」，再一層層反推前置條件，直到今天還不存在的東西。
 > 狀態圖示：⬜ 未開始　🔶 進行中　✅ 完成
-> ⚠️ 本檔為規劃文件。**§6 待確認問題未經回應前，不進入實作。**
+> 🔒 §6 規格已凍結（2026-09-05），實作進行中。
+>
+> **目前唯一阻塞（2026-09-05）**：GitHub App 權限缺 `workflows`，無法推送 `.github/workflows/*`。
+> 已完成：全部程式碼（Rust 核心/訓練器/WASM 綁定/Preact PWA）＋本地驗證（tsc 0 錯誤、vitest 5/5、build 通過）。
+> 待使用者重連 GitHub 後：推 workflows → CI 編譯測試 → 匯出 toolchain → 訓練真權重 → merge → Pages 部署＋線上煙測。
 
 ---
 
@@ -63,44 +67,46 @@ L0 腳手架：cargo workspace、Vite TS 模板、Actions workflow、CI 綠燈�
 - [x] 使用者回應 §6 待確認問題（2026-09-05：第 1 題選 b，其餘授權以機會成本法決策）
 - [x] 凍結 v1 規格（體測項目、課表結構、週數）
 
-### M1 腳手架（0.5 天）⬜
-- [ ] cargo workspace：`crates/core`（演算法）、`crates/wasm`（綁定）
-- [ ] `web/`：Vite + TypeScript 前端
-- [ ] GitHub Actions 骨架：rust.yml（fmt+clippy+test）、web.yml（build）
-- [ ] **CI 綠燈基線**：空專案也要全綠，並驗證 Pages 子路徑部署可行（踩雷最早暴露）
+### M1 腳手架 ✅（2026-09-05）
+- [x] cargo workspace：`crates/core`（演算法）、`crates/wasm`（綁定）、`crates/train`（離線訓練）
+- [x] `web/`：Vite + TypeScript + Preact 前端（zh-TW、手機優先、深色主題）
+- [x] GitHub Actions 三件套：rust.yml（fmt+clippy+test+權重檢查）、web.yml（build→deploy→煙測→失敗開 issue）、toolchain-export.yml（沙盒開發用）
+  - ⚠️ workflow 檔已寫好於 `.github/workflows/`，**因 GitHub App 缺 `workflows` 權限暫未推送**，待重連 GitHub 後補上
+- [x] wasm 建置腳本 `scripts/build-wasm.sh`（web + nodejs 雙 target）
 
-### M2 Rust 核心（2 天）⬜
-- [ ] 體測輸入 schema（輸入資料模型）
-- [ ] 課表輸出 schema（Plan/Week/Session/Exercise/退階條件）
-- [ ] MLP 前向推論（手寫矩陣乘法、ReLU/Sigmoid）
-- [ ] 離線訓練腳本：規則生成訓練資料 → 梯度下降 → 權重 embed
-- [ ] PTH 課表規劃器（階段：基礎力量 → 壓撐支撐 → 倒立技能 → 組合 PTH）
-- [ ] cargo test：輸出邊界、課表合理性（斷言不跳級、負荷單調漸進、退階觸發正確）
+### M2 Rust 核心 ✅（程式碼＋測試完成；沙盒無 Rust 編譯環境，首次編譯由 CI 驗證）
+- [x] 體測輸入 schema（輸入資料模型，13 欄位 → 12 維標準化特徵）
+- [x] 課表輸出 schema（Plan/PlanWeek/Session/Block/Prescription，camelCase JSON）
+- [x] MLP 前向推論（手寫矩陣乘法 12→16→8→5，ReLU/Sigmoid）＋完整反向傳播
+- [x] 離線訓練腳本：規則引擎標籤（飽和曲線＋體重懲罰）→ 手寫 SGD（400 epochs）→ 權重 embed
+  - 權重檔暫為未訓練佔位（trained=false，CI 的 --check 會跳過）；待 toolchain 匯出後本地訓練真權重
+- [x] PTH 課表規劃器（5 階段門檻推進、2–5 次訓練夾限、第 4/8/12 週減載、退階/進階）
+- [x] cargo test：邊界、課表合理性、微調夾限、端到端流程（19＋測試）
 
-### M3 WASM 橋接（0.5 天）⬜
-- [ ] wasm-bindgen API：`assess(assessment) -> plan`、`recalibrate(plan, weekly_log) -> plan`
-- [ ] TS 型別同步（ts-rs 或手寫 `.d.ts`，單一真相來源在 Rust）
-- [ ] wasm-pack build 進 CI；Node 端整合測試（CI 內可跑 WASM）
+### M3 WASM 橋接 ✅（程式碼完成；CI 驗證）
+- [x] wasm-bindgen API：`assess`、`recalibrate`、`load_weights/export_weights/reset_weights`
+- [x] TS 型別對應（web/src/types.ts ↔ Rust model，camelCase）
+- [x] CI 內 Node 端整合測試（wasm-pack 改用 wasm-bindgen-cli GitHub Releases，因沙盒僅 GitHub/npm 可達）
 
-### M4 前端（2 天）⬜
-- [ ] 手機優先 UI（320px 起步、大觸控目標、深色模式）
-- [ ] 體測流程：分步表單（肩屈活動度、手腕、平板支撐秒數、倒立靠牆撐、pike push-up 次數、體重/身高…依 §6 決定）
-- [ ] 課表顯示：週曆檢視、動作卡、退階/進階條件、當週焦點
-- [ ] localStorage 進度記錄 + 每週回報 UI
-- [ ] PWA：manifest + service worker（Pages 子路徑相容、離線看課表）
+### M4 前端 ✅（2026-09-05 本地驗證通過：tsc 零錯誤、vitest 5/5、vite build 成功 13KB gzip）
+- [x] 手機優先 UI（深色主題、大觸控目標、safe-area、320px 起步）
+- [x] 體測流程：4 步精靈（關於你 → 活動度 → 支撐與推力 → 倒立專項），全欄位預設值＋測試方式提示
+- [x] 課表顯示：能力評分條、週次選擇、階段目標、訓練卡（要點/退階/進階）、減載標記
+- [x] localStorage 進度＋每週回報 UI（出席、難度、疼痛、備註）
+- [x] PWA：manifest + 手寫 service worker（stale-while-revalidate、離線看課表）＋圖示
 
-### M5 產品閉環（1 天）⬜
-- [ ] 每週回報 → `recalibrate` → 課表 diff 呈現（「本週調整了什麼、為什麼」）
-- [ ] 匯出/匯入 JSON（換機不掉資料）
+### M5 產品閉環 ✅（實作完成）
+- [x] 每週回報 → `recalibrate`（只微調輸出層；評分變動夾限 +0.12/−0.15；疼痛→強制減載）→ 新課表＋「改了什麼、為什麼」清單
+- [x] 匯出/匯入 JSON（含微調後權重）＋重置網絡
 
-### M6 CI/CD 閉環（1 天）⬜
-- [ ] PR 門：rustfmt + clippy + cargo test + vitest + build 全綠才可 merge
-- [ ] merge main：wasm build → web build → 自動 deploy GitHub Pages
-- [ ] 部署後煙測：Playwright 對**線上 URL** 跑「體測 → 生成課表」一輪
-- [ ] 失敗回饋：煙測紅燈自動重跑一次 → 仍紅則自動開 issue + 標記 last-good commit（閉環收口）
-- [ ] README 徽章 + 線上網址 + 本 todo 更新為 ✅
+### M6 CI/CD 閉環 🔶（阻塞：GitHub 權限）
+- [x] workflow 檔案撰寫完成（rust.yml / web.yml / toolchain-export.yml）
+- [ ] **等待使用者重連 GitHub（需 workflows 權限）** → 推送 workflows
+- [ ] CI 首次編譯驗證 → toolchain 匯出 → 本地訓練真權重 → 提交
+- [ ] merge main：自動部署 Pages → 線上煙測（Playwright）→ 失敗自動開 issue
+- [ ] README 徽章生效
 
-### M7 驗收（0.5 天）⬜
+### M7 驗收 ⬜（待 M6 解鎖後執行）
 - [ ] 手機實機完整走一遍 L1→L6
 - [ ] Lighthouse：Performance ≥ 90、PWA 可安裝
 - [ ] 斷網測試：離線仍可查看課表

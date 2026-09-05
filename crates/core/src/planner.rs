@@ -137,16 +137,6 @@ fn scale_sets(base: u8, volume: f32, deload: bool) -> u8 {
     }
 }
 
-fn ex_block(kind: BlockKind, ids: &[&str], scores: &Scores, volume: f32, deload: bool) -> Block {
-    let items = ids
-        .iter()
-        .filter_map(|id| exercises::get(id))
-        .map(|e| rx(e, scale_sets(e.base_sets, volume, deload)))
-        .collect();
-    let _ = scores;
-    Block { kind, items }
-}
-
 fn block_of(kind: BlockKind, ids: &[&str], volume: f32, deload: bool) -> Block {
     let items = ids
         .iter()
@@ -157,19 +147,13 @@ fn block_of(kind: BlockKind, ids: &[&str], volume: f32, deload: bool) -> Block {
 }
 
 fn strength_session(idx: usize, stage: u8, s: &Scores, volume: f32, deload: bool) -> Session {
-    let warmup = ex_block(
-        BlockKind::Warmup,
-        &["wrist_prep", "shoulder_circles"],
-        s,
-        1.0,
-        false,
-    );
-    let main = ex_block(BlockKind::Main, &main_pair(stage, s), s, volume, deload);
+    let warmup = block_of(BlockKind::Warmup, &["wrist_prep", "shoulder_circles"], 1.0, false);
+    let main = block_of(BlockKind::Main, &main_pair(stage, s), volume, deload);
     let mut core_ids: Vec<&str> = vec![pick_core(s)];
     if stage < 2 {
         core_ids.push("plank_shoulder_taps");
     }
-    let core = ex_block(BlockKind::Core, &core_ids, s, volume, deload);
+    let core = block_of(BlockKind::Core, &core_ids, volume, deload);
     let mobility = block_of(BlockKind::Mobility, &["wall_down_dog"], 1.0, false);
     Session {
         label_zh: format!("訓練 {}・力量重點", idx + 1),
@@ -178,16 +162,9 @@ fn strength_session(idx: usize, stage: u8, s: &Scores, volume: f32, deload: bool
 }
 
 fn skill_session(idx: usize, stage: u8, s: &Scores, volume: f32, deload: bool) -> Session {
-    let warmup = ex_block(
-        BlockKind::Warmup,
-        &["wrist_prep", "shoulder_circles"],
-        s,
-        1.0,
-        false,
-    );
-    let skill = ex_block(BlockKind::Skill, &skill_drills(stage, s), s, volume, deload);
-    let maintain_ids: Vec<&str> = vec![pick_push(s)];
-    let maintain = block_of(BlockKind::Accessory, &maintain_ids, volume * 0.7, deload);
+    let warmup = block_of(BlockKind::Warmup, &["wrist_prep", "shoulder_circles"], 1.0, false);
+    let skill = block_of(BlockKind::Skill, &skill_drills(stage, s), volume, deload);
+    let maintain = block_of(BlockKind::Accessory, &[pick_push(s)], volume * 0.7, deload);
     let mobility = block_of(
         BlockKind::Mobility,
         &["wrist_stretch", "shoulder_flex_stretch"],

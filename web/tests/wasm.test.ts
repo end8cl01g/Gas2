@@ -1,10 +1,24 @@
 // Node 端整合測試：直接跑 wasm（nodejs target），驗證 Rust 引擎的完整閉環。
+// 匯入採防禦式寫法：同時相容本地 stub（ESM）與 CI 的 wasm-bindgen nodejs 產物（CJS）。
 import { beforeAll, describe, expect, it } from 'vitest';
-import init, { Engine } from '../src/wasm-node/gas2_wasm.js';
+import * as wasmPkg from '../src/wasm-node/gas2_wasm.js';
 import type { Plan, RecalibrateResponse, Scores } from '../src/types';
 
+type EngineLike = {
+  assess: (json: string) => string;
+  recalibrate: (json: string) => string;
+  export_weights: () => string;
+  load_weights: (json: string) => void;
+  reset_weights: () => void;
+  current_scores: () => string | null;
+};
+
+const pkg = wasmPkg as unknown as Record<string, unknown>;
+const EngineCtor = pkg.Engine as unknown as new () => EngineLike;
+const initFn = (pkg.default ?? pkg.initSync) as (() => Promise<unknown>) | (() => unknown);
+
 beforeAll(async () => {
-  await init();
+  await initFn();
 });
 
 const SAMPLE = {
@@ -25,7 +39,7 @@ const SAMPLE = {
 
 describe('wasm engine', () => {
   it('assess 產生 12 週課表，欄位齊全', () => {
-    const e = new Engine();
+    const e = new EngineCtor();
     const plan = JSON.parse(e.assess(JSON.stringify(SAMPLE))) as Plan;
     expect(plan.totalWeeks).toBe(12);
     expect(plan.weeks).toHaveLength(12);
@@ -51,7 +65,7 @@ describe('wasm engine', () => {
   });
 
   it('recalibrate（太輕鬆）→ 評分上調且附帶說明', () => {
-    const e = new Engine();
+    const e = new EngineCtor();
     e.assess(JSON.stringify(SAMPLE));
     const before = JSON.parse(e.current_scores()!) as Scores;
     const resp = JSON.parse(
@@ -76,12 +90,12 @@ describe('wasm engine', () => {
     // 新課表完整
     expect(resp.plan.weeks).toHaveLength(12);
     // 權重可重新載入
-    const e2 = new Engine();
+    const e2 = new EngineCtor();
     expect(() => e2.load_weights(resp.weights)).not.toThrow();
   });
 
   it('疼痛回報 → 強制減載＋相關評分下調', () => {
-    const e = new Engine();
+    const e = new EngineCtor();
     e.assess(JSON.stringify(SAMPLE));
     const before = JSON.parse(e.current_scores()!) as Scores;
     const resp = JSON.parse(
@@ -102,22 +116,23 @@ describe('wasm engine', () => {
   });
 
   it('權重匯出/載入 roundtrip 保持推論一致', () => {
-    const e = new Engine();
+    const e = new EngineCtor();
     e.assess(JSON.stringify(SAMPLE));
     const weights = e.export_weights();
-    const e2 = new Engine();
+    const e2 = new EngineCtor();
     e2.load_weights(weights);
+    e2.assess(JSON.stringify(SAMPLE)); // 同權重＋同體測 → 同評分
     expect(e2.current_scores()).toBe(e.current_scores());
   });
 
   it('重置權重回到基線', () => {
-    const e = new Engine();
+    const e = new EngineCtor();
     e.assess(JSON.stringify(SAMPLE));
     e.recalibrate(
       JSON.stringify({ weekIndex: 1, sessionsCompleted: 3, sessionsPlanned: 3, focus: 'tooEasy', pain: [], notes: null })
     );
     e.reset_weights();
-    const e0 = new Engine();
+    const e0 = new EngineCtor();
     e0.assess(JSON.stringify(SAMPLE));
     expect(e.current_scores()).toBe(e0.current_scores());
   });

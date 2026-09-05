@@ -6,13 +6,16 @@
 //! 3. 評分本身夾限 [0.02, 0.98]，課表由規劃器硬約束生成
 
 use crate::model::{
-    ChangeNote, Focus, PainArea, Scores, WeeklyLog, INPUT_FEATURES, OUTPUT_SCORES, SCORE_NAMES_ZH,
+    Assessment, ChangeNote, Focus, PainArea, Scores, WeeklyLog, INPUT_FEATURES, OUTPUT_SCORES,
 };
 use crate::nn::Mlp;
 use crate::planner::{self, STAGES};
 
-const FINETUNE_LR: f32 = 0.06;
-const FINETUNE_STEPS: usize = 12;
+/// 輸出層微調是固定隱層下的凸問題，可用較大學習率；
+/// 早停條件：MSE 低於 eps（收斂）或達步數上限。
+const FINETUNE_LR: f32 = 0.3;
+const FINETUNE_STEPS: usize = 400;
+const FINETUNE_EPS: f32 = 2e-5;
 const MAX_UP: f32 = 0.12;
 const MAX_DOWN: f32 = 0.15;
 const SCORE_FLOOR: f32 = 0.02;
@@ -83,13 +86,14 @@ pub fn recalibrate(
         target[i] = (prev_arr[i] + delta[i]).clamp(SCORE_FLOOR, SCORE_CEIL);
     }
 
-    // 2. 只微調輸出層
+    // 2. 只微調輸出層（凸問題＋早停）
     let x: [f32; INPUT_FEATURES] = assessment.sanitized().features();
-    let mut loss = 0.0;
     for _ in 0..FINETUNE_STEPS {
-        loss = nn.train_step_output_layer(&x, &target, FINETUNE_LR);
+        let mse = nn.train_step_output_layer(&x, &target, FINETUNE_LR);
+        if mse < FINETUNE_EPS {
+            break;
+        }
     }
-    let _ = loss; // 診斷用；暫不對外暴露
 
     // 3. 重新推論並套用安全夾限
     let raw = nn.infer(&x);

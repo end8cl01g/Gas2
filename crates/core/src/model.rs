@@ -27,13 +27,7 @@ pub const SCORE_NAMES_ZH: [&str; OUTPUT_SCORES] = [
 ];
 
 fn clampf(x: f32, lo: f32, hi: f32) -> f32 {
-    if x < lo {
-        lo
-    } else if x > hi {
-        hi
-    } else {
-        x
-    }
+    x.clamp(lo, hi)
 }
 
 /// 體能測試結果（全部為自評/計時/計數，不使用攝影機）

@@ -215,6 +215,17 @@ fn main() {
         wnorm(&nn.w2),
         wnorm(&nn.w3)
     );
+    println!("w1[0][0..5]={:.4?}", &nn.w1[0][0..5]);
+    println!("b1[0..4]={:.4?}", &nn.b1[0..4]);
+    let mut pre_acts = [0.0f32; 24];
+    for (u, row) in nn.w1.iter().enumerate() {
+        let mut pa = nn.b1[u];
+        for (j, xj) in tx[0].iter().enumerate() {
+            pa += row[j] * xj;
+        }
+        pre_acts[u] = pa;
+    }
+    println!("樣本0 h1 pre-act={:.3?}", pre_acts);
 
     let epochs = 900usize;
     let batch = 64usize;
@@ -229,6 +240,15 @@ fn main() {
             0.002
         };
         rng.shuffle(&mut idx);
+        if epoch == 0 {
+            let w_before = nn.w1[0][0];
+            let mse0 = nn.train_step(&tx[0], &tt[0], lr);
+            println!(
+                "  [單步] train_step(sample0) mse={:.5} Δw1[0][0]={:.6}",
+                mse0,
+                nn.w1[0][0] - w_before
+            );
+        }
         let mut k = 0;
         while k < idx.len() {
             let end = (k + batch).min(idx.len());
@@ -237,6 +257,15 @@ fn main() {
             }
             k = end;
             i += 1;
+        }
+        if epoch == 0 {
+            let w_before = nn.w1[0][0];
+            let mse0 = nn.train_step(&tx[0], &tt[0], lr);
+            println!(
+                "  [單步] train_step(sample0) mse={:.5} Δw1[0][0]={:.6}",
+                mse0,
+                nn.w1[0][0] - w_before
+            );
         }
         if epoch == 0 || epoch == 4 {
             let alive: (usize, usize) = {

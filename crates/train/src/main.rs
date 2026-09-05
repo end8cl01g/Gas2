@@ -115,7 +115,7 @@ fn gen_dataset(n: usize, seed: u64) -> (Vec<[f32; INPUT_FEATURES]>, Vec<[f32; OU
     (xs, ts)
 }
 
-fn fill_gaussian(rng: &mut Lcg, rows: &mut Vec<Vec<f32>>, fan_in: usize) {
+fn fill_gaussian(rng: &mut Lcg, rows: &mut [Vec<f32>], fan_in: usize) {
     let k = 1.0 / (fan_in as f32).sqrt();
     for row in rows.iter_mut() {
         for v in row.iter_mut() {

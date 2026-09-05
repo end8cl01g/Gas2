@@ -52,7 +52,7 @@ impl Engine {
     /// 重置回基線權重；若已有體測，則以基線權重重算評分與課表
     pub fn reset_weights(&mut self) {
         self.nn = Mlp::from_json(BASELINE_WEIGHTS_JSON).expect("baseline weights valid");
-        if let Some(a) = self.assessment.clone() {
+        if let Some(a) = self.assessment {
             let scores = Scores::from_array(self.nn.infer(&a.features())).clamped();
             self.plan = Some(planner::build_plan(&a, &scores));
             self.scores = Some(scores);

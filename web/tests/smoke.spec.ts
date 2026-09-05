@@ -2,7 +2,8 @@
 import { expect, test } from '@playwright/test';
 
 test('體測 → 課表 → 週回報 → 課表自動微調', async ({ page }) => {
-  await page.goto('/');
+  // 用相對路徑：baseURL 為 GitHub Pages 子路徑（/Gas2/）時，'/' 會解析到根網域 404；'./' 兩種環境皆正確
+  await page.goto('./');
 
   // 等待 wasm 引擎載入完成（歡迎頁出現）
   const start = page.getByTestId('start-assessment');

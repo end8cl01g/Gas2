@@ -45,7 +45,7 @@ fn assessment(strong: bool) -> Assessment {
 #[test]
 fn baseline_weights_parse_and_marked() {
     let nn = Mlp::from_json(BASELINE_WEIGHTS_JSON).expect("內嵌基線權重必須合法");
-    assert_eq!(nn.arch, [12, 16, 8, 5]);
+    assert_eq!(nn.arch, [12, 24, 12, 5]);
 }
 
 #[test]

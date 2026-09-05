@@ -29,7 +29,7 @@ CI 閉環： push → lint/test/build → deploy Pages → 線上煙測(Playwrig
 │    └── src/wasm/  ← wasm-bindgen 產物
 ├─ crates/wasm/   引擎綁定（assess / recalibrate / 權重載入匯出）
 ├─ crates/core/   純 Rust 核心
-│    ├── nn.rs        手寫 MLP（12→16→8→5）前向＋反向傳播
+│    ├── nn.rs        手寫 MLP（12→24→12→5）前向＋反向傳播
 │    ├── finetune.rs  線上微調（僅輸出層＋雙重安全夾限）
 │    ├── planner.rs   課表規劃器（階段門檻、漸進超載、強制減載）
 │    ├── exercises.rs 27 個動作（文字要點＋退階/進階）
@@ -39,7 +39,7 @@ CI 閉環： push → lint/test/build → deploy Pages → 線上煙測(Playwrig
 
 ### 「神經網絡但不用 AI」的界定
 
-- 網絡為 389 參數的小型 MLP；權重由 `crates/train` 以**可審計的專家規則**生成標籤（飽和曲線），再以手寫 SGD 訓練
+- 網絡為約 700 參數的小型 MLP（12→24→12→5）；權重由 `crates/train` 以**可審計的專家規則**生成標籤（飽和曲線），再以手寫 SGD 訓練
 - 基線權重 `include_str!` 內嵌；瀏覽器內只做前向推論與輸出層微調
 - 安全設計：微調僅動輸出層；單週每項評分變動上限 +0.12/−0.15；課表由規劃器硬約束生成（不跳級、每 4 週減載）
 

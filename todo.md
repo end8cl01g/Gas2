@@ -1,0 +1,138 @@
+# TODO — Press to Handstand 個人化訓練網頁（Rust + TypeScript）
+
+> 規劃方法：**從最終結果出發逆向推導**——先定義「完成時看到的東西」，再一層層反推前置條件，直到今天還不存在的東西。
+> 狀態圖示：⬜ 未開始　🔶 進行中　✅ 完成
+> ⚠️ 本檔為規劃文件。**§6 待確認問題未經回應前，不進入實作。**
+
+---
+
+## 0. 最終結果（北極星，先定義「什麼叫做完」）
+
+一支部署在 GitHub Pages 的手機網頁：
+
+1. 使用者手機打開網頁，完成約 5 分鐘**體能測試**（自評＋計時/計數項，不需攝影機）
+2. **Rust 演算法神經網絡**（手寫 MLP，編譯成 WASM，100% 瀏覽器本地運算，**不呼叫任何 AI 服務**）推論出個人化的 Press to Handstand 訓練路徑
+3. 顯示週期化課表：階段／動作／組數次數／退階與進階條件
+4. **產品閉環**：使用者每週回報訓練結果 → 重新推論 → 課表自動微調並說明「改了什麼、為什麼」
+5. **CI 閉環**：每次 git push 自動 lint → test → build → deploy → 部署後煙測 → 失敗自動回饋開 issue；CI 全綠＝結果可交付
+
+---
+
+## 1. 逆向路徑圖（結果 ← 一層層反推前置）
+
+```
+L6 結果驗收：手機開頁 → 5 分鐘體測 → 12 週課表；每週回饋後自動微調；離線可用
+   ↑ 需要
+L5 部署閉環：Actions push → build → deploy Pages → 煙測線上 URL → 失敗重跑/開 issue
+   ↑ 需要
+L4 產品閉環：體測 UI → WASM 推論 → 課表渲染 → 進度記錄(localStorage) → 重算
+   ↑ 需要
+L3 前端層：TypeScript + Vite + PWA，呼叫 WASM API
+   ↑ 需要
+L2 橋接層：wasm-pack + wasm-bindgen，型別安全（體測 JSON ⇄ 課表 JSON）
+   ↑ 需要
+L1 核心層：純 Rust 神經網絡（前向推論＋路徑規劃器後處理）＋ cargo test
+   ↑ 需要
+L0 腳手架：cargo workspace、Vite TS 模板、Actions workflow、CI 綠燈基線
+```
+
+**兩個環的定義**
+- 產品閉環：測 → 練 → 回報 → 重算（在網頁內）
+- CI 閉環：提交 → 測試 → 部署 → 煙測 → 回饋（在 GitHub 內）
+
+---
+
+## 2. 技術選型（草案，隨 §6 回應凍結）
+
+| 層 | 選擇 | 理由 |
+|---|---|---|
+| 核心 | 純 Rust 手寫 MLP（矩陣運算自己寫） | 「用演算法不用 AI」：可測、可審計、可編譯 WASM、零外部依賴 |
+| 權重 | 規則引擎生成標籤資料 → 離線訓練腳本（手寫梯度下降）→ 權重 embed 進 binary | 版控可重現；線上零 AI 依賴 |
+| 橋接 | wasm-pack + wasm-bindgen | 業界標準 |
+| 前端 | Vite + TypeScript（vanilla 或 Preact，待 §6 確認） | 手機網頁、體積小 |
+| 部署 | GitHub Pages + GitHub Actions | 免費、閉環全自動 |
+| 測試 | cargo test + vitest + Playwright | 三層品質門 |
+
+**神經網絡範圍界定**：小型多層感知器（例：12 體測輸入 → 16 → 8 → 輸出能力評分/所處階段），權重由規則式資料離線訓練後硬編碼；線上只做**前向推論**，再交給**規劃器**做安全約束後處理（不跳級、漸進超載、退階優先）。「不用 AI」＝不用任何外部 AI API／機器學習框架，演算法全部手寫。
+
+---
+
+## 3. 里程碑與任務
+
+### M0 需求確認（現在）⬜
+- [ ] 使用者回應 §6 待確認問題
+- [ ] 凍結 v1 規格（體測項目、課表結構、週數）
+
+### M1 腳手架（0.5 天）⬜
+- [ ] cargo workspace：`crates/core`（演算法）、`crates/wasm`（綁定）
+- [ ] `web/`：Vite + TypeScript 前端
+- [ ] GitHub Actions 骨架：rust.yml（fmt+clippy+test）、web.yml（build）
+- [ ] **CI 綠燈基線**：空專案也要全綠，並驗證 Pages 子路徑部署可行（踩雷最早暴露）
+
+### M2 Rust 核心（2 天）⬜
+- [ ] 體測輸入 schema（輸入資料模型）
+- [ ] 課表輸出 schema（Plan/Week/Session/Exercise/退階條件）
+- [ ] MLP 前向推論（手寫矩陣乘法、ReLU/Sigmoid）
+- [ ] 離線訓練腳本：規則生成訓練資料 → 梯度下降 → 權重 embed
+- [ ] PTH 課表規劃器（階段：基礎力量 → 壓撐支撐 → 倒立技能 → 組合 PTH）
+- [ ] cargo test：輸出邊界、課表合理性（斷言不跳級、負荷單調漸進、退階觸發正確）
+
+### M3 WASM 橋接（0.5 天）⬜
+- [ ] wasm-bindgen API：`assess(assessment) -> plan`、`recalibrate(plan, weekly_log) -> plan`
+- [ ] TS 型別同步（ts-rs 或手寫 `.d.ts`，單一真相來源在 Rust）
+- [ ] wasm-pack build 進 CI；Node 端整合測試（CI 內可跑 WASM）
+
+### M4 前端（2 天）⬜
+- [ ] 手機優先 UI（320px 起步、大觸控目標、深色模式）
+- [ ] 體測流程：分步表單（肩屈活動度、手腕、平板支撐秒數、倒立靠牆撐、pike push-up 次數、體重/身高…依 §6 決定）
+- [ ] 課表顯示：週曆檢視、動作卡、退階/進階條件、當週焦點
+- [ ] localStorage 進度記錄 + 每週回報 UI
+- [ ] PWA：manifest + service worker（Pages 子路徑相容、離線看課表）
+
+### M5 產品閉環（1 天）⬜
+- [ ] 每週回報 → `recalibrate` → 課表 diff 呈現（「本週調整了什麼、為什麼」）
+- [ ] 匯出/匯入 JSON（換機不掉資料）
+
+### M6 CI/CD 閉環（1 天）⬜
+- [ ] PR 門：rustfmt + clippy + cargo test + vitest + build 全綠才可 merge
+- [ ] merge main：wasm build → web build → 自動 deploy GitHub Pages
+- [ ] 部署後煙測：Playwright 對**線上 URL** 跑「體測 → 生成課表」一輪
+- [ ] 失敗回饋：煙測紅燈自動重跑一次 → 仍紅則自動開 issue + 標記 last-good commit（閉環收口）
+- [ ] README 徽章 + 線上網址 + 本 todo 更新為 ✅
+
+### M7 驗收（0.5 天）⬜
+- [ ] 手機實機完整走一遍 L1→L6
+- [ ] Lighthouse：Performance ≥ 90、PWA 可安裝
+- [ ] 斷網測試：離線仍可查看課表
+- [ ] 閉環示範：改一行程式 → CI 全綠 → 線上自動更新
+
+---
+
+## 4. 風險與對策
+| 風險 | 對策 |
+|---|---|
+| WASM + Pages 子路徑（base path）設定踩雷 | M1 就用空專案驗證部署，不等最後才試 |
+| NN 推薦不合理／不安全 | 規劃器硬約束後處理：漸進超載上限、退階優先、白名單動作庫 |
+| 範圍蔓延（攝影機姿態估計、帳號、後端） | v1 凍結：無攝影機、無帳號、無後端、無伺服器 |
+| 神經網絡被誤解為「接 AI 服務」 | 全手寫演算法＋測試覆蓋，README 說明權重來源 |
+
+---
+
+## 5. 依賴與工具鏈
+Rust stable、wasm-pack、wasm32-unknown-unknown target、Node LTS、Playwright（CI 用）。
+
+---
+
+## 6. 待確認問題（回應此節即可，回應後凍結規格進入 M1）
+1. **神經網絡定位**：a) 權重離線訓練後凍結、線上只推論；還是 b) 線上輕量微調（越用越準，但複雜度+）？
+2. **體測項目**：接受「自評＋計時/計數」（無攝影機）嗎？請勾選/增刪：肩屈活動度、手腕活動度、平板支撐秒數、pike push-up 次數、靠牆倒立撐次數、空心支撐秒數、身高體重、訓練頻率(週幾天)。
+3. **課表長度**：8 / 12 / 16 週？
+4. **前端**：vanilla TS（最小最快）還是 Preact（易擴充）？
+5. **UI 語言**：繁體中文／雙語（中英）？
+6. **部署**：GitHub Pages 可接受？
+7. **動作庫內容**：需要每個動作的文字要點＋示意說明嗎（影響內容工作量）？
+
+---
+
+## 7. 明確不做（v1）
+攝影機/視覺姿態估計、使用者帳號與雲端同步、後端伺服器、任何外部 AI API、社交/分享功能。

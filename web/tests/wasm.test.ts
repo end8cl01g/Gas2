@@ -147,8 +147,34 @@ describe('wasm engine', () => {
     expect(ps.dosing.workCapacity).toBeGreaterThan(pw.dosing.workCapacity);
     expect(ps.dosing.recovery).toBeGreaterThan(pw.dosing.recovery);
     expect(ps.weeks[0].volumeScale).toBeGreaterThan(pw.weeks[0].volumeScale);
-    const restOf = (p: Plan) => p.weeks[0].sessions[0].blocks[1].items[0].restSec;
-    expect(restOf(ps)).toBeLessThan(restOf(pw));
+    // 休息要比「同一個動作」（不同階段的主課表動作基準休息不同，不能直接比）
+    const restById = (p: Plan) => {
+      const m = new Map<string, number>();
+      for (const s of p.weeks[0].sessions)
+        for (const b of s.blocks)
+          if (b.kind !== 'warmup' && b.kind !== 'mobility')
+            for (const it of b.items) m.set(it.exerciseId, it.restSec);
+      return m;
+    };
+    const rw = restById(pw);
+    const rs = restById(ps);
+    const shared = [...rs.keys()].filter((id) => rw.has(id));
+    if (shared.length > 0) {
+      for (const id of shared) expect(rs.get(id)!).toBeLessThanOrEqual(rw.get(id)!);
+      expect(shared.some((id) => rs.get(id)! < rw.get(id)!)).toBe(true);
+    } else {
+      // 無共同動作時，以同一體測改變恢復力相關欄位（年資／活動度）驗證休息縮放
+      const lowRec = { ...SAMPLE, experience: 0, shoulderMobility: 1, wristMobility: 1 };
+      const highRec = { ...SAMPLE, experience: 3, shoulderMobility: 5, wristMobility: 5 };
+      const pl = JSON.parse(new EngineCtor().assess(JSON.stringify(lowRec))) as Plan;
+      const ph = JSON.parse(new EngineCtor().assess(JSON.stringify(highRec))) as Plan;
+      expect(ph.dosing.recovery).toBeGreaterThan(pl.dosing.recovery);
+      const rl = restById(pl);
+      const rh = restById(ph);
+      const common = [...rh.keys()].filter((id) => rl.has(id));
+      expect(common.length).toBeGreaterThan(0);
+      for (const id of common) expect(rh.get(id)!).toBeLessThanOrEqual(rl.get(id)!);
+    }
   });
 
   it('recalibrate（太輕鬆）→ 評分與劑量上調且附帶說明', () => {

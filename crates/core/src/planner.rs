@@ -684,7 +684,7 @@ mod tests {
         assert_eq!(plan.weeks[0].stage, 0, "第 1 週維持目前階段");
         let stages: Vec<u8> = plan.weeks.iter().map(|w| w.stage).collect();
         assert!(
-            stages.iter().any(|&s| s == 1),
+            stages.contains(&1),
             "應出現預計升階週: {stages:?}"
         );
         for (i, w) in plan.weeks.iter().enumerate() {

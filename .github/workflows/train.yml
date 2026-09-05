@@ -1,0 +1,40 @@
+# 在 runner 上訓練基線權重並提交（沙盒無 Rust 環境，runner 是訓練來源）
+# 也可手動 dispatch：gh workflow run train.yml
+name: Train weights
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "crates/train/**"
+      - "crates/core/src/nn.rs"
+      - "crates/core/src/model.rs"
+
+permissions:
+  contents: write
+
+jobs:
+  train:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Train baseline weights
+        run: cargo run -p gas2-train --release
+
+      - name: Commit trained weights (if changed)
+        run: |
+          if git diff --quiet -- crates/core/weights/baseline.json; then
+            echo "weights unchanged"
+          else
+            git config user.name "arena-ai-coding-agent[bot]"
+            git config user.email "arena-ai-coding-agent[bot]@users.noreply.github.com"
+            git add crates/core/weights/baseline.json
+            git commit -m "weights: retrain baseline (rule-engine labels + SGD)"
+            git push
+          fi

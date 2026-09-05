@@ -1,9 +1,10 @@
-//! 手寫多層感知器（MLP）：12 → 24 → 12 → 5，ReLU 隱層、Sigmoid 輸出。
+//! 手寫多層感知器（MLP）：12 → 24 → 12 → 8，ReLU 隱層、Sigmoid 輸出。
+//! 輸出前 5 維為能力評分、後 3 維為劑量參數（工作容量／恢復力／進步速率）。
 //! 含前向推論、完整反向傳播（離線訓練用）、僅輸出層微調（線上用）。
 
 use serde::{Deserialize, Serialize};
 
-use crate::model::{INPUT_FEATURES, OUTPUT_SCORES};
+use crate::model::{INPUT_FEATURES, OUTPUT_DIMS};
 
 /// 權重結構：三層全連接。`trained` 標記是否已完成離線訓練。
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -67,10 +68,18 @@ impl Mlp {
         serde_json::to_string(self).expect("Mlp serializes")
     }
 
-    /// 結構一致性檢查
+    /// 結構一致性檢查（含輸入／輸出維度必須符合目前 schema）
     pub fn validate(&self) -> Result<(), String> {
         let [input, h1, h2, output] = self.arch;
         let check = |cond: bool, msg: &str| if cond { Ok(()) } else { Err(msg.to_string()) };
+        check(
+            input == INPUT_FEATURES,
+            &format!("輸入維度 {input} 不符 schema（需 {INPUT_FEATURES}）"),
+        )?;
+        check(
+            output == OUTPUT_DIMS,
+            &format!("輸出維度 {output} 不符 schema（需 {OUTPUT_DIMS}）"),
+        )?;
         check(!self.w1.is_empty(), "w1 是空的")?;
         check(self.w1.len() == h1, "w1 列數不符 h1")?;
         check(
@@ -99,7 +108,7 @@ impl Mlp {
         Ok(())
     }
 
-    /// 前向推論：回傳 OUTPUT_SCORES 個 0–1 能力評分
+    /// 前向推論：回傳 OUTPUT_DIMS 個 0–1 輸出（能力評分＋劑量參數）
     pub fn forward(&self, x: &[f32]) -> Vec<f32> {
         let h1 = relu(matvec(&self.w1, &self.b1, x));
         let h2 = relu(matvec(&self.w2, &self.b2, &h1));
@@ -109,9 +118,9 @@ impl Mlp {
             .collect()
     }
 
-    /// 以標準化評分輸入推論
-    pub fn infer(&self, x: &[f32; INPUT_FEATURES]) -> [f32; OUTPUT_SCORES] {
-        let mut out = [0.0f32; OUTPUT_SCORES];
+    /// 以標準化特徵輸入推論
+    pub fn infer(&self, x: &[f32; INPUT_FEATURES]) -> [f32; OUTPUT_DIMS] {
+        let mut out = [0.0f32; OUTPUT_DIMS];
         let v = self.forward(x);
         out.copy_from_slice(&v);
         out
@@ -204,19 +213,19 @@ impl Mlp {
     }
 
     /// 資料集 MSE（離線訓練/驗證用）
-    pub fn mse_on(&self, xs: &[[f32; INPUT_FEATURES]], ts: &[[f32; OUTPUT_SCORES]]) -> f32 {
+    pub fn mse_on(&self, xs: &[[f32; INPUT_FEATURES]], ts: &[[f32; OUTPUT_DIMS]]) -> f32 {
         if xs.is_empty() {
             return 0.0;
         }
         let mut total = 0.0;
         for (x, t) in xs.iter().zip(ts.iter()) {
             let y = self.infer(x);
-            for i in 0..OUTPUT_SCORES {
+            for i in 0..OUTPUT_DIMS {
                 let e = y[i] - t[i];
                 total += e * e;
             }
         }
-        total / (xs.len() as f32 * OUTPUT_SCORES as f32)
+        total / (xs.len() as f32 * OUTPUT_DIMS as f32)
     }
 }
 
@@ -226,7 +235,7 @@ mod tests {
 
     #[test]
     fn forward_output_in_unit_range() {
-        let nn = Mlp::new(INPUT_FEATURES, 16, 8, OUTPUT_SCORES);
+        let nn = Mlp::new(INPUT_FEATURES, 16, 8, OUTPUT_DIMS);
         let x = [0.5f32; INPUT_FEATURES];
         for v in nn.infer(&x) {
             assert!((0.0..=1.0).contains(&v));
@@ -235,10 +244,10 @@ mod tests {
 
     #[test]
     fn full_training_reduces_error_on_single_sample() {
-        let mut nn = Mlp::new(INPUT_FEATURES, 16, 8, OUTPUT_SCORES);
+        let mut nn = Mlp::new(INPUT_FEATURES, 16, 8, OUTPUT_DIMS);
         // 以常數函數為玩具目標
         let x = [0.5f32; INPUT_FEATURES];
-        let t = [0.9f32; OUTPUT_SCORES];
+        let t = [0.9f32; OUTPUT_DIMS];
         let before = nn.mse_on(&[x], &[t]);
         for _ in 0..500 {
             nn.train_step(&x, &t, 0.1);
@@ -250,7 +259,7 @@ mod tests {
 
     #[test]
     fn output_layer_training_moves_output_toward_target() {
-        let mut nn = Mlp::new(INPUT_FEATURES, 16, 8, OUTPUT_SCORES);
+        let mut nn = Mlp::new(INPUT_FEATURES, 16, 8, OUTPUT_DIMS);
         // 給隱層一點非零結構
         for (i, row) in nn.w1.iter_mut().enumerate() {
             for v in row.iter_mut() {
@@ -259,26 +268,30 @@ mod tests {
         }
         let x = [0.4f32; INPUT_FEATURES];
         let y0 = nn.infer(&x);
-        let t = [0.95f32; OUTPUT_SCORES];
+        let t = [0.95f32; OUTPUT_DIMS];
         for _ in 0..300 {
             nn.train_step_output_layer(&x, &t, 0.08);
         }
         let y1 = nn.infer(&x);
-        for i in 0..OUTPUT_SCORES {
+        for i in 0..OUTPUT_DIMS {
             assert!(y1[i] > y0[i], "第 {i} 維應上移: {} -> {}", y0[i], y1[i]);
         }
     }
 
     #[test]
     fn json_roundtrip_and_validation() {
-        let mut nn = Mlp::new(INPUT_FEATURES, 16, 8, OUTPUT_SCORES);
+        let mut nn = Mlp::new(INPUT_FEATURES, 16, 8, OUTPUT_DIMS);
         nn.b3[0] = 0.3;
         let json = nn.to_json();
         let back = Mlp::from_json(&json).unwrap();
         assert_eq!(back.arch, nn.arch);
         assert!((back.b3[0] - 0.3).abs() < 1e-9);
 
-        let bad = r#"{"arch":[12,16,8,5],"w1":[],"b1":[],"w2":[],"b2":[],"w3":[],"b3":[]}"#;
+        let bad = r#"{"arch":[12,16,8,8],"w1":[],"b1":[],"w2":[],"b2":[],"w3":[],"b3":[]}"#;
         assert!(Mlp::from_json(bad).is_err());
+
+        // 舊版 5 維輸出權重（localStorage 殘留）必須被拒絕，前端才會重置回基線
+        let legacy = Mlp::new(INPUT_FEATURES, 24, 12, 5).to_json();
+        assert!(Mlp::from_json(&legacy).is_err(), "舊 schema 權重應拒絕載入");
     }
 }

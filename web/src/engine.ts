@@ -14,7 +14,7 @@ export function getEngine(): Promise<Engine> {
         try {
           engine.load_weights(weights);
         } catch {
-          // 保存的權重不相容時，重置回基線
+          // 保存的權重不相容（例如舊版 5 維輸出）時，重置回基線
           engine.reset_weights();
         }
       }

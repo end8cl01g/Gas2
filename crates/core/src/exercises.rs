@@ -1,5 +1,10 @@
-//! PTH（Press to Handstand）動作庫：文字要點＋退階/進階說明。
+//! PTH（Press to Handstand）動作庫：文字要點＋退階/進階說明＋劑量基準。
 //! 決策 §6-7：v1 不做圖片，文字承載教學價值。
+//!
+//! 這裡只放「基準值與允許區間」；實際組數、次數落點、組間休息
+//! 由規劃器依神經網絡輸出的劑量參數（工作容量／恢復力／進步速率）決定。
+
+use crate::model::RepUnit;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Exercise {
@@ -8,10 +13,14 @@ pub struct Exercise {
     pub cues_zh: &'static [&'static str],
     pub regression_zh: &'static str,
     pub progression_zh: &'static str,
+    /// 基準組數（規劃器依訓練量係數縮放，上限 base+2 且 ≤ 6）
     pub base_sets: u8,
-    /// 例如 "8-10" 或 "30-45秒"
-    pub base_reps: &'static str,
-    pub rest_sec: u16,
+    /// 次數／秒數允許區間（規劃器依劑量參數在區間內選取子窗）
+    pub rep_lo: u16,
+    pub rep_hi: u16,
+    pub unit: RepUnit,
+    /// 基準組間休息（規劃器依恢復力縮放）
+    pub base_rest_sec: u16,
 }
 
 pub const EXERCISES: &[Exercise] = &[
@@ -27,8 +36,10 @@ pub const EXERCISES: &[Exercise] = &[
         regression_zh: "減少繞行圈數、降低重心偏移幅度",
         progression_zh: "伸直雙腿改成平板姿勢增加負荷",
         base_sets: 2,
-        base_reps: "30秒",
-        rest_sec: 30,
+        rep_lo: 30,
+        rep_hi: 30,
+        unit: RepUnit::Seconds,
+        base_rest_sec: 30,
     },
     Exercise {
         id: "shoulder_circles",
@@ -40,8 +51,10 @@ pub const EXERCISES: &[Exercise] = &[
         regression_zh: "縮小繞圈半徑",
         progression_zh: "手持輕量水瓶增加阻力",
         base_sets: 2,
-        base_reps: "10圈",
-        rest_sec: 30,
+        rep_lo: 10,
+        rep_hi: 10,
+        unit: RepUnit::Circles,
+        base_rest_sec: 30,
     },
     Exercise {
         id: "wall_down_dog",
@@ -54,8 +67,10 @@ pub const EXERCISES: &[Exercise] = &[
         regression_zh: "手扶高度較高的位置",
         progression_zh: "手的位置越來越低，接近地面下犬",
         base_sets: 2,
-        base_reps: "20-30秒",
-        rest_sec: 30,
+        rep_lo: 20,
+        rep_hi: 30,
+        unit: RepUnit::Seconds,
+        base_rest_sec: 30,
     },
     Exercise {
         id: "wrist_stretch",
@@ -64,8 +79,10 @@ pub const EXERCISES: &[Exercise] = &[
         regression_zh: "減少按壓深度",
         progression_zh: "增加按壓時間至 30–40 秒",
         base_sets: 2,
-        base_reps: "20秒",
-        rest_sec: 20,
+        rep_lo: 20,
+        rep_hi: 20,
+        unit: RepUnit::Seconds,
+        base_rest_sec: 20,
     },
     Exercise {
         id: "shoulder_flex_stretch",
@@ -78,8 +95,10 @@ pub const EXERCISES: &[Exercise] = &[
         regression_zh: "雙臂張開與肩同寬再上滑",
         progression_zh: "單臂進行並靠近牆角加深",
         base_sets: 2,
-        base_reps: "8次",
-        rest_sec: 30,
+        rep_lo: 8,
+        rep_hi: 8,
+        unit: RepUnit::Reps,
+        base_rest_sec: 30,
     },
     // ── 階段 0：基礎力量 ─────────────────────────────────────────
     Exercise {
@@ -93,8 +112,10 @@ pub const EXERCISES: &[Exercise] = &[
         regression_zh: "提高支撐面高度",
         progression_zh: "降低支撐面高度直至地面伏地挺身",
         base_sets: 3,
-        base_reps: "8-12",
-        rest_sec: 90,
+        rep_lo: 8,
+        rep_hi: 12,
+        unit: RepUnit::Reps,
+        base_rest_sec: 90,
     },
     Exercise {
         id: "pushup",
@@ -107,8 +128,10 @@ pub const EXERCISES: &[Exercise] = &[
         regression_zh: "改為上斜伏地挺身或跪姿伏地挺身",
         progression_zh: "放慢離心 3 秒，或改鑽石伏地挺身",
         base_sets: 3,
-        base_reps: "8-12",
-        rest_sec: 90,
+        rep_lo: 8,
+        rep_hi: 12,
+        unit: RepUnit::Reps,
+        base_rest_sec: 90,
     },
     Exercise {
         id: "plank",
@@ -121,8 +144,10 @@ pub const EXERCISES: &[Exercise] = &[
         regression_zh: "膝蓋著地的跪姿平板",
         progression_zh: "單腳離地或延長支撐時間",
         base_sets: 3,
-        base_reps: "30-45秒",
-        rest_sec: 60,
+        rep_lo: 30,
+        rep_hi: 45,
+        unit: RepUnit::Seconds,
+        base_rest_sec: 60,
     },
     Exercise {
         id: "dead_bug",
@@ -135,8 +160,10 @@ pub const EXERCISES: &[Exercise] = &[
         regression_zh: "只移動腳、手不動",
         progression_zh: "改為空心體位準備（hollow 搖擺）",
         base_sets: 3,
-        base_reps: "每側8次",
-        rest_sec: 60,
+        rep_lo: 8,
+        rep_hi: 8,
+        unit: RepUnit::PerSide,
+        base_rest_sec: 60,
     },
     Exercise {
         id: "hollow_hold",
@@ -149,8 +176,10 @@ pub const EXERCISES: &[Exercise] = &[
         regression_zh: "改為屈膝空心支撐（tuck hollow）",
         progression_zh: "延長時間或雙臂過頭、手腕／腳踝加重",
         base_sets: 3,
-        base_reps: "20-30秒",
-        rest_sec: 60,
+        rep_lo: 20,
+        rep_hi: 30,
+        unit: RepUnit::Seconds,
+        base_rest_sec: 60,
     },
     Exercise {
         id: "plank_shoulder_taps",
@@ -163,8 +192,10 @@ pub const EXERCISES: &[Exercise] = &[
         regression_zh: "改跪姿平板拍肩",
         progression_zh: "放慢節奏並在頂點停頓 1 秒",
         base_sets: 3,
-        base_reps: "每側8-10次",
-        rest_sec: 60,
+        rep_lo: 8,
+        rep_hi: 10,
+        unit: RepUnit::PerSide,
+        base_rest_sec: 60,
     },
     Exercise {
         id: "pike_pushup",
@@ -177,8 +208,10 @@ pub const EXERCISES: &[Exercise] = &[
         regression_zh: "縮小下放深度或墊高雙手",
         progression_zh: "雙腳墊高（階梯/椅子）增加垂直負荷",
         base_sets: 3,
-        base_reps: "6-10",
-        rest_sec: 90,
+        rep_lo: 6,
+        rep_hi: 10,
+        unit: RepUnit::Reps,
+        base_rest_sec: 90,
     },
     // ── 階段 1：壓撐與支撐 ───────────────────────────────────────
     Exercise {
@@ -192,8 +225,10 @@ pub const EXERCISES: &[Exercise] = &[
         regression_zh: "降低墊高高度",
         progression_zh: "朝靠牆倒立俯臥撐（半程）過渡",
         base_sets: 4,
-        base_reps: "5-8",
-        rest_sec: 90,
+        rep_lo: 5,
+        rep_hi: 8,
+        unit: RepUnit::Reps,
+        base_rest_sec: 90,
     },
     Exercise {
         id: "wall_plank",
@@ -206,8 +241,10 @@ pub const EXERCISES: &[Exercise] = &[
         regression_zh: "腳踩位置放低",
         progression_zh: "腳沿牆上移，加大肩角",
         base_sets: 3,
-        base_reps: "20-30秒",
-        rest_sec: 60,
+        rep_lo: 20,
+        rep_hi: 30,
+        unit: RepUnit::Seconds,
+        base_rest_sec: 60,
     },
     Exercise {
         id: "wall_walk",
@@ -220,8 +257,10 @@ pub const EXERCISES: &[Exercise] = &[
         regression_zh: "限制上走範圍（45–60 度）",
         progression_zh: "鼻子貼牆停留 5 秒再下降",
         base_sets: 3,
-        base_reps: "3-5",
-        rest_sec: 90,
+        rep_lo: 3,
+        rep_hi: 5,
+        unit: RepUnit::Reps,
+        base_rest_sec: 90,
     },
     Exercise {
         id: "seated_pike_compress",
@@ -234,8 +273,10 @@ pub const EXERCISES: &[Exercise] = &[
         regression_zh: "屈膝降低力矩",
         progression_zh: "改為支撐 L 座（L-sit 前身）抬離更久",
         base_sets: 4,
-        base_reps: "10-15秒",
-        rest_sec: 60,
+        rep_lo: 10,
+        rep_hi: 15,
+        unit: RepUnit::Seconds,
+        base_rest_sec: 60,
     },
     // ── 階段 2：倒立技能 ─────────────────────────────────────────
     Exercise {
@@ -249,8 +290,10 @@ pub const EXERCISES: &[Exercise] = &[
         regression_zh: "只走到一半角度即回",
         progression_zh: "僅以腳尖點牆，拉長離牆時間",
         base_sets: 4,
-        base_reps: "20-40秒",
-        rest_sec: 60,
+        rep_lo: 20,
+        rep_hi: 40,
+        unit: RepUnit::Seconds,
+        base_rest_sec: 60,
     },
     Exercise {
         id: "wall_handstand_hold",
@@ -263,8 +306,10 @@ pub const EXERCISES: &[Exercise] = &[
         regression_zh: "上牆角度減小或改面牆版本",
         progression_zh: "單腳離牆找重心、縮短觸牆時間",
         base_sets: 4,
-        base_reps: "20-45秒",
-        rest_sec: 60,
+        rep_lo: 20,
+        rep_hi: 45,
+        unit: RepUnit::Seconds,
+        base_rest_sec: 60,
     },
     Exercise {
         id: "kickup_practice",
@@ -277,8 +322,10 @@ pub const EXERCISES: &[Exercise] = &[
         regression_zh: "面對牆以指尖輔助修正重心",
         progression_zh: "連續多次 3–5 秒的穩定停駐",
         base_sets: 5,
-        base_reps: "10次嘗試",
-        rest_sec: 60,
+        rep_lo: 8,
+        rep_hi: 12,
+        unit: RepUnit::Attempts,
+        base_rest_sec: 60,
     },
     // ── 階段 3：倒立力量 ─────────────────────────────────────────
     Exercise {
@@ -292,8 +339,10 @@ pub const EXERCISES: &[Exercise] = &[
         regression_zh: "再縮短行程或以彈力帶輔助",
         progression_zh: "逐步加大行程至頭頂碰地",
         base_sets: 4,
-        base_reps: "4-6",
-        rest_sec: 120,
+        rep_lo: 4,
+        rep_hi: 6,
+        unit: RepUnit::Reps,
+        base_rest_sec: 120,
     },
     Exercise {
         id: "wall_hspu_neg",
@@ -306,8 +355,10 @@ pub const EXERCISES: &[Exercise] = &[
         regression_zh: "縮短離心時間至 2 秒",
         progression_zh: "加做向心推起（完整倒立俯臥撐）",
         base_sets: 4,
-        base_reps: "3-5",
-        rest_sec: 120,
+        rep_lo: 3,
+        rep_hi: 5,
+        unit: RepUnit::Reps,
+        base_rest_sec: 120,
     },
     Exercise {
         id: "wall_hspu",
@@ -320,8 +371,10 @@ pub const EXERCISES: &[Exercise] = &[
         regression_zh: "改半程或離心版本",
         progression_zh: "放慢節奏、增加次數或改折腿倒立俯臥撐",
         base_sets: 4,
-        base_reps: "3-6",
-        rest_sec: 120,
+        rep_lo: 3,
+        rep_hi: 6,
+        unit: RepUnit::Reps,
+        base_rest_sec: 120,
     },
     // ── 階段 4：PTH 專項 ─────────────────────────────────────────
     Exercise {
@@ -335,8 +388,10 @@ pub const EXERCISES: &[Exercise] = &[
         regression_zh: "提高站立側高度縮短行程",
         progression_zh: "降低高度直至地面離心",
         base_sets: 4,
-        base_reps: "3-5",
-        rest_sec: 120,
+        rep_lo: 3,
+        rep_hi: 5,
+        unit: RepUnit::Reps,
+        base_rest_sec: 120,
     },
     Exercise {
         id: "tuck_pth",
@@ -349,8 +404,10 @@ pub const EXERCISES: &[Exercise] = &[
         regression_zh: "以跳躍輔助完成上半程",
         progression_zh: "逐步伸直雙腿（straddle → 併腿）",
         base_sets: 4,
-        base_reps: "3-5",
-        rest_sec: 120,
+        rep_lo: 3,
+        rep_hi: 5,
+        unit: RepUnit::Reps,
+        base_rest_sec: 120,
     },
     Exercise {
         id: "pth_neg",
@@ -363,8 +420,10 @@ pub const EXERCISES: &[Exercise] = &[
         regression_zh: "改屈腿離心",
         progression_zh: "嘗試地面直腿起頭的完整 PTH",
         base_sets: 4,
-        base_reps: "3-4",
-        rest_sec: 120,
+        rep_lo: 3,
+        rep_hi: 4,
+        unit: RepUnit::Reps,
+        base_rest_sec: 120,
     },
     Exercise {
         id: "pth_full",
@@ -377,8 +436,10 @@ pub const EXERCISES: &[Exercise] = &[
         regression_zh: "分腿（straddle）版本降低力矩需求",
         progression_zh: "併腿直腿版本、放慢全程節奏",
         base_sets: 5,
-        base_reps: "2-4",
-        rest_sec: 150,
+        rep_lo: 2,
+        rep_hi: 4,
+        unit: RepUnit::Reps,
+        base_rest_sec: 150,
     },
 ];
 
@@ -397,8 +458,17 @@ mod tests {
             assert!(!e.cues_zh.is_empty(), "{} 缺要點", e.id);
             assert!(!e.regression_zh.is_empty(), "{} 缺退階", e.id);
             assert!(!e.progression_zh.is_empty(), "{} 缺進階", e.id);
-            assert!(e.base_sets >= 1 && e.base_sets <= 6);
-            assert!(e.rest_sec >= 20 && e.rest_sec <= 240);
+            assert!((1..=6).contains(&e.base_sets), "{} 組數基準越界", e.id);
+            assert!(
+                (1..=e.rep_hi).contains(&e.rep_lo),
+                "{} 次數區間不合法",
+                e.id
+            );
+            assert!(
+                (20..=240).contains(&e.base_rest_sec),
+                "{} 休息基準越界",
+                e.id
+            );
         }
     }
 

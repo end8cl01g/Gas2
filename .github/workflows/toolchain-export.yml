@@ -1,0 +1,42 @@
+# 把 runner 的 Rust 工具鏈（含 wasm32 target）與依賴快取打包傳回本地沙盒，
+# 讓本地也能快速迭代（沙盒網路僅允許 GitHub / npm registry）。
+name: Toolchain export
+
+on:
+  workflow_dispatch:
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install toolchain (rustfmt + clippy included) & wasm-bindgen
+        run: |
+          rustup toolchain install stable --profile default --no-self-update
+          rustup default stable
+          rustup target add wasm32-unknown-unknown
+          mkdir -p /tmp/wb && cd /tmp/wb
+          curl -sSfL https://github.com/rustwasm/wasm-bindgen/releases/download/0.2.100/wasm-bindgen-0.2.100-x86_64-unknown-linux-musl.tar.gz | tar xz
+          BIN_DIR="$(find . -type f -name wasm-bindgen | head -1 | xargs dirname)"
+          install -m755 "$BIN_DIR/wasm-bindgen" "$HOME/.cargo/bin/"
+          cargo --version && rustfmt --version && clippy-driver --version && wasm-bindgen --version
+
+      - name: Fetch workspace dependencies
+        run: cargo fetch --workspace
+
+      - name: Pack toolchain & registry
+        run: |
+          RU="${RUSTUP_HOME:-$HOME/.rustup}"
+          CG="${CARGO_HOME:-$HOME/.cargo}"
+          echo "RUSTUP_HOME=$RU CARGO_HOME=$CG"
+          sudo tar czf /tmp/rust-toolchain.tgz -C "$(dirname "$RU")" "$(basename "$RU")" -C "$(dirname "$CG")" "$(basename "$CG")"
+          ls -lh /tmp/rust-toolchain.tgz
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rust-toolchain
+          path: /tmp/rust-toolchain.tgz
+          retention-days: 7
+          compression-level: 0

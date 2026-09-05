@@ -1,0 +1,12 @@
+[package]
+name = "gas2-train"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+gas2-core = { path = "../core" }
+serde_json = { workspace = true }
+
+[[bin]]
+name = "gas2-train"
+path = "src/main.rs"

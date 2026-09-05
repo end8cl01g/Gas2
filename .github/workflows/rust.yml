@@ -1,0 +1,67 @@
+name: Rust CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+          targets: wasm32-unknown-unknown
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Format check
+        run: cargo fmt --all -- --check
+
+      - name: Clippy (deny warnings)
+        run: |
+          set -o pipefail
+          cargo clippy --workspace --all-targets -- -D warnings 2>&1 | tee /tmp/clippy.log
+
+      - name: Unit & integration tests
+        run: |
+          set -o pipefail
+          cargo test --workspace 2>&1 | tee /tmp/test.log
+
+      - name: Report diagnostics to PR on failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          {
+            echo "CI 失敗診斷（自動貼上）"
+            for f in /tmp/clippy.log /tmp/test.log; do
+              [ -f "$f" ] || continue
+              echo
+              echo "### $f"
+              echo '```'
+              tail -c 20000 "$f" | sed 's/\x1b\[[0-9;]*m//g'
+              echo '```'
+            done
+          } > /tmp/body.md
+          if [ -n "$PR" ]; then
+            gh pr comment "$PR" --body-file /tmp/body.md || true
+          else
+            gh issue create --title "CI diagnostics @ ${GITHUB_SHA::7}" --body-file /tmp/body.md || true
+          fi
+
+      - name: Baseline weights regression check
+        run: cargo run -p gas2-train -- --check
+
+      - name: Compile wasm target
+        run: cargo build -p gas2-wasm --target wasm32-unknown-unknown --release

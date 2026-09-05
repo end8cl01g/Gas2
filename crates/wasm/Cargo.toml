@@ -1,0 +1,13 @@
+[package]
+name = "gas2-wasm"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+gas2-core = { path = "../core" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+wasm-bindgen = "=0.2.100"

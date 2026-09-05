@@ -6,7 +6,7 @@
 //! 3. 評分本身夾限 [0.02, 0.98]，課表由規劃器硬約束生成
 
 use crate::model::{
-    Assessment, ChangeNote, Focus, PainArea, Scores, WeeklyLog, INPUT_FEATURES, OUTPUT_SCORES,
+    ChangeNote, Focus, PainArea, Scores, WeeklyLog, INPUT_FEATURES, OUTPUT_SCORES,
 };
 use crate::nn::Mlp;
 use crate::planner::{self, STAGES};
@@ -71,7 +71,7 @@ fn target_delta(log: &WeeklyLog) -> [f32; OUTPUT_SCORES] {
 /// 以一週回報微調網絡，並產出人話說明。
 pub fn recalibrate(
     nn: &mut Mlp,
-    assessment: &crate::model::Assessment,
+    assessment: &Assessment,
     log: &WeeklyLog,
     prev: &Scores,
 ) -> Recalibration {

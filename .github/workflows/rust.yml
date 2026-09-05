@@ -50,7 +50,7 @@ jobs:
               echo
               echo "### $f"
               echo '```'
-              tail -c 6000 "$f"
+              tail -c 20000 "$f" | sed 's/\x1b\[[0-9;]*m//g'
               echo '```'
             done
           } > /tmp/body.md

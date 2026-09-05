@@ -336,7 +336,7 @@ mod tests {
         let a = Assessment {
             shoulder_mobility: 200,
             wrist_mobility: 3,
-            plank_sec: 99_999,
+            plank_sec: 60_000,
             hollow_sec: 0,
             pushup_reps: 255,
             pike_pushup_reps: 0,

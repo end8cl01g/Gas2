@@ -117,7 +117,9 @@ impl Mlp {
         out
     }
 
-    /// 單一樣本 SGD（全網路），回傳該樣本 MSE
+    /// 單一樣本 SGD（全網路），回傳該樣本 MSE。
+    /// 數值核心採索引迴圈寫法（多陣列交錯存取），豁免 needless_range_loop。
+    #[allow(clippy::needless_range_loop)]
     pub fn train_step(&mut self, x: &[f32], target: &[f32], lr: f32) -> f32 {
         let h1 = relu(matvec(&self.w1, &self.b1, x));
         let h2 = relu(matvec(&self.w2, &self.b2, &h1));

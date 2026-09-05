@@ -8,6 +8,8 @@ export default defineConfig({
   retries: 1,
   use: {
     baseURL: process.env.SMOKE_URL ?? 'http://127.0.0.1:4173',
+    screenshot: 'only-on-failure',
+    trace: 'retain-on-failure',
   },
   // workflow 以 --project=chromium 執行；先前未定義 projects 導致 Playwright 直接報錯（煙測 2 秒即失敗）
   projects: [{ name: 'chromium', use: { ...devices['Pixel 7'] } }],

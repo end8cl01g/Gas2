@@ -4,9 +4,9 @@
 > 狀態圖示：⬜ 未開始　🔶 進行中　✅ 完成
 > 🔒 §6 規格已凍結（2026-09-05），實作進行中。
 >
-> **目前唯一阻塞（2026-09-05）**：GitHub App 權限缺 `workflows`，無法推送 `.github/workflows/*`。
-> 已完成：全部程式碼（Rust 核心/訓練器/WASM 綁定/Preact PWA）＋本地驗證（tsc 0 錯誤、vitest 5/5、build 通過）。
-> 待使用者重連 GitHub 後：推 workflows → CI 編譯測試 → 匯出 toolchain → 訓練真權重 → merge → Pages 部署＋線上煙測。
+> **狀態（2026-09-06）**：兩個閉環皆已打通。CI 閉環 push → lint/test → deploy Pages → 線上煙測 ✅ 首次全綠（run 33983470456）；
+> 產品閉環的課表劑量（組數／次數／休息／漸進／減載／升階投影）已全部由神經網絡 8 維輸出驅動（PR #18）。
+> 線上：https://end8cl01g.github.io/Gas2/ 。剩餘：M7 實機驗收。
 
 ---
 
@@ -105,9 +105,12 @@ L0 腳手架：cargo workspace、Vite TS 模板、Actions workflow、CI 綠燈�
 - [x] workflows 已成功推送並運行；Rust CI 全綠（fmt/clippy/test/權重檢查/wasm 編譯）；Web CI/CD PR 側全綠
 - [x] PR #1 已 merge 進 main；CI on main：Rust CI ✅
 - [x] 真權重已由 Train workflow 在 runner 訓練並自動提交 main（修了兩個根因：wasm-bindgen 資產名、自寫 LCG 的不動點陷阱→改 SplitMix64）
-- [ ] **唯一手動步驟：倉庫 Settings → Pages → Source 選 GitHub Actions**（App 無權建立 Pages site）→ 之後 deploy→煙測 閉環即通
-- [ ] merge main：自動部署 Pages → 線上煙測（Playwright）→ 失敗自動開 issue
-- [ ] README 徽章生效
+- [x] Pages Source = GitHub Actions（`build_type: workflow` 已生效）
+- [x] merge main：自動部署 Pages → 線上煙測（Playwright）→ 失敗自動開 issue ✅（2026-09-06 首次全綠）
+  - 根因 1：`playwright.config` 未定義 projects，workflow 卻 `--project=chromium` → 煙測 2 秒即錯（PR #18）
+  - 根因 2：`page.goto('/')` 在 Pages 子路徑 baseURL 下解析到根網域 404 → 4×30s 逾時（PR #20；issue #19 可關閉）
+  - 附帶：web.yml 補 `issues: write`（開 issue 步驟先前也因權限失敗）、等待 CDN、失敗上傳 report／截圖／trace
+- [x] README 徽章生效
 
 ### M6.5 神經網絡工作範圍擴大 ✅（2026-09-06，PR 待 CI 驗證）
 > 使用者要求：課表／動作／組數次數「全部納入神經網絡的工作範圍」。
@@ -117,7 +120,8 @@ L0 腳手架：cargo workspace、Vite TS 模板、Actions workflow、CI 綠燈�
 - [x] 修 bug：回報疼痛／過難的 `force_deload` 先前只出現在說明文字，課表沒減載 → 現在從下一週（錨點週）起重算並實際減組數
 - [x] 微調涵蓋全部 8 維；舊版 5 維權重載入被拒 → 前端自動重置基線並重算課表（localStorage／匯入皆處理）
 - [x] 前端：劑量參數條、預計升階／強制減載徽章、訓練量係數、預設跳到下一週；vitest 新增 3 個案例
-- [ ] CI：Rust 測試（沙盒無 Rust，靠 CI；Web CI 已綠）→ Train workflow 重訓正式權重（PR 內附 numpy 移植訓練的權重，val MSE 0.00055）
+- [x] CI：Rust CI／Web CI 全綠；merge 後 Train workflow 已以 Rust 訓練器重訓並提交正式權重（c5d122a，arch 12→24→12→8）
+- [x] PWA 換版：sw.js 快取 v1→v2、導覽請求 network-first（新部署後重新整理兩次即為新版）
 
 ### M7 驗收 ⬜（待 M6 解鎖後執行）
 - [ ] 手機實機完整走一遍 L1→L6

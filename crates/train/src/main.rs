@@ -205,6 +205,12 @@ fn main() {
     let mut nn = Mlp::new(INPUT_FEATURES, 24, 12, OUTPUT_SCORES);
     init_weights(&mut nn, &mut rng);
 
+    // ── 微觀診斷：資料與初始化 ──
+    let wnorm = |w: &[Vec<f32>]| w.iter().flatten().map(|v| v * v).sum::<f32>().sqrt();
+    println!("樣本0 x={:.3?}", tx[0]);
+    println!("樣本0 t={:.3?}", tt[0]);
+    println!("init ||w1||={:.4} ||w2||={:.4} ||w3||={:.4}", wnorm(&nn.w1), wnorm(&nn.w2), wnorm(&nn.w3));
+
     let epochs = 900usize;
     let batch = 64usize;
     let mut idx: Vec<usize> = (0..tx.len()).collect();
@@ -226,6 +232,29 @@ fn main() {
             }
             k = end;
             i += 1;
+        }
+        if epoch == 0 || epoch == 4 {
+            let alive: (usize, usize) = {
+                let mut a1 = 0usize;
+                let mut n = 0usize;
+                for x in tx.iter().take(200) {
+                    let h1v: Vec<f32> = nn.w1
+                        .iter()
+                        .zip(nn.b1.iter())
+                        .map(|(row, &bi)| row.iter().zip(x.iter()).map(|(&wi, &xi)| wi * xi).sum::<f32>() + bi)
+                        .map(|v| if v > 0.0 { a1 += 1; v } else { 0.0 })
+                        .collect();
+                    let _ = &h1v;
+                    n += nn.w1.len();
+                }
+                (a1, n)
+            };
+            println!(
+                "  [診斷 epoch {}] ||w1||={:.4} h1活躍率={:.2}%",
+                epoch + 1,
+                wnorm(&nn.w1),
+                100.0 * alive.0 as f32 / alive.1 as f32
+            );
         }
         if (epoch + 1) % 50 == 0 {
             println!(

@@ -11,16 +11,20 @@
 use gas2_core::model::{Assessment, INPUT_FEATURES, OUTPUT_SCORES};
 use gas2_core::nn::Mlp;
 
-/// 固定種子線性同餘亂數（可重現，無外部依賴）
-struct Lcg(u64);
+/// SplitMix64：可重現、無外部依賴、無 LCG 的「低狀態陷阱」問題。
+/// （原 Lcg 在狀態 < 0.157×2^64 後不再溢出，會單調收斂到不動點，導致亂數死亡。）
+struct Rng(u64);
 
-impl Lcg {
+impl Rng {
+    fn next_u64(&mut self) -> u64 {
+        self.0 = self.0.wrapping_add(0x9E37_79B9_7F4A_7C15);
+        let mut z = self.0;
+        z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+        z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+        z ^ (z >> 31)
+    }
     fn next_f32(&mut self) -> f32 {
-        self.0 = self
-            .0
-            .wrapping_mul(6364136223846793005)
-            .wrapping_add(1442695040888963407);
-        ((self.0 >> 33) as f32) / (u32::MAX as f32)
+        (self.next_u64() >> 40) as f32 / (1u64 << 24) as f32
     }
     fn range(&mut self, a: f32, b: f32) -> f32 {
         a + (b - a) * self.next_f32()
@@ -39,7 +43,7 @@ fn sat(x: f32) -> f32 {
 
 /// 專家規則系統：由體測項目推導「真實」能力評分（含微噪聲）。
 /// 這是訓練資料的標籤來源，規則完全可審計。
-fn expert_scores(a: &Assessment, rng: &mut Lcg) -> [f32; OUTPUT_SCORES] {
+fn expert_scores(a: &Assessment, rng: &mut Rng) -> [f32; OUTPUT_SCORES] {
     let a = a.sanitized();
     let bw_over = ((a.bodyweight_ratio() - 0.45) / 0.20).clamp(0.0, 1.0);
     let pen = 1.0 - 0.25 * bw_over; // 體重相對身高偏高 → 倒立類吃虧
@@ -52,7 +56,7 @@ fn expert_scores(a: &Assessment, rng: &mut Lcg) -> [f32; OUTPUT_SCORES] {
     let g_hspu = sat(a.wall_hspu_reps as f32 / 8.0);
     let g_pike = sat(a.pike_pushup_reps as f32 / 12.0);
     let exp = sat(a.experience as f32 / 2.0) * 0.08;
-    let noise = |rng: &mut Lcg| rng.range(-0.03, 0.03);
+    let noise = |rng: &mut Rng| rng.range(-0.03, 0.03);
     [
         (0.6 * g_push + 0.4 * g_plank)
             .mul_add(1.0 - 0.10 * bw_over, exp + noise(rng))
@@ -65,12 +69,12 @@ fn expert_scores(a: &Assessment, rng: &mut Lcg) -> [f32; OUTPUT_SCORES] {
 }
 
 /// 依「潛在運動能力 u」採樣合成使用者（欄位間有相關性）
-fn jitter(rng: &mut Lcg, u: f32, lo: f32, hi: f32, spread: f32) -> f32 {
+fn jitter(rng: &mut Rng, u: f32, lo: f32, hi: f32, spread: f32) -> f32 {
     let base = lo + (hi - lo) * u;
     rng.range(base - spread, base + spread).clamp(lo, hi)
 }
 
-fn sample_user(rng: &mut Lcg) -> Assessment {
+fn sample_user(rng: &mut Rng) -> Assessment {
     let u = rng.next_f32(); // 0=新手 … 1=高手
     let shoulder_mobility = jitter(rng, u, 0.0, 5.0, 1.2).round() as u8;
     let wrist_mobility = jitter(rng, u, 0.0, 5.0, 1.2).round() as u8;
@@ -104,7 +108,7 @@ fn sample_user(rng: &mut Lcg) -> Assessment {
 }
 
 fn gen_dataset(n: usize, seed: u64) -> (Vec<[f32; INPUT_FEATURES]>, Vec<[f32; OUTPUT_SCORES]>) {
-    let mut rng = Lcg(seed);
+    let mut rng = Rng(seed);
     let mut xs = Vec::with_capacity(n);
     let mut ts = Vec::with_capacity(n);
     for _ in 0..n {
@@ -115,7 +119,7 @@ fn gen_dataset(n: usize, seed: u64) -> (Vec<[f32; INPUT_FEATURES]>, Vec<[f32; OU
     (xs, ts)
 }
 
-fn fill_gaussian(rng: &mut Lcg, rows: &mut [Vec<f32>], fan_in: usize) {
+fn fill_gaussian(rng: &mut Rng, rows: &mut [Vec<f32>], fan_in: usize) {
     let k = 1.0 / (fan_in as f32).sqrt();
     for row in rows.iter_mut() {
         for v in row.iter_mut() {
@@ -124,7 +128,7 @@ fn fill_gaussian(rng: &mut Lcg, rows: &mut [Vec<f32>], fan_in: usize) {
     }
 }
 
-fn init_weights(nn: &mut Mlp, rng: &mut Lcg) {
+fn init_weights(nn: &mut Mlp, rng: &mut Rng) {
     fill_gaussian(rng, &mut nn.w1, nn.arch[0]);
     fill_gaussian(rng, &mut nn.w2, nn.arch[1]);
     fill_gaussian(rng, &mut nn.w3, nn.arch[2]);
@@ -201,31 +205,18 @@ fn main() {
         / OUTPUT_SCORES as f32;
     println!("均值基線 MSE = {mean_mse:.5}（學習應顯著低於此值）");
 
-    let mut rng = Lcg(TRAIN_SEED);
+    let mut rng = Rng(TRAIN_SEED);
     let mut nn = Mlp::new(INPUT_FEATURES, 24, 12, OUTPUT_SCORES);
     init_weights(&mut nn, &mut rng);
 
     // ── 微觀診斷：資料與初始化 ──
     let wnorm = |w: &[Vec<f32>]| w.iter().flatten().map(|v| v * v).sum::<f32>().sqrt();
-    println!("樣本0 x={:.3?}", tx[0]);
-    println!("樣本0 t={:.3?}", tt[0]);
     println!(
         "init ||w1||={:.4} ||w2||={:.4} ||w3||={:.4}",
         wnorm(&nn.w1),
         wnorm(&nn.w2),
         wnorm(&nn.w3)
     );
-    println!("w1[0][0..5]={:.4?}", &nn.w1[0][0..5]);
-    println!("b1[0..4]={:.4?}", &nn.b1[0..4]);
-    let mut pre_acts = [0.0f32; 24];
-    for (u, row) in nn.w1.iter().enumerate() {
-        let mut pa = nn.b1[u];
-        for (j, xj) in tx[0].iter().enumerate() {
-            pa += row[j] * xj;
-        }
-        pre_acts[u] = pa;
-    }
-    println!("樣本0 h1 pre-act={:.3?}", pre_acts);
 
     let epochs = 900usize;
     let batch = 64usize;
@@ -240,15 +231,6 @@ fn main() {
             0.002
         };
         rng.shuffle(&mut idx);
-        if epoch == 0 {
-            let w_before = nn.w1[0][0];
-            let mse0 = nn.train_step(&tx[0], &tt[0], lr);
-            println!(
-                "  [單步] train_step(sample0) mse={:.5} Δw1[0][0]={:.6}",
-                mse0,
-                nn.w1[0][0] - w_before
-            );
-        }
         let mut k = 0;
         while k < idx.len() {
             let end = (k + batch).min(idx.len());
@@ -257,52 +239,6 @@ fn main() {
             }
             k = end;
             i += 1;
-        }
-        if epoch == 0 {
-            let w_before = nn.w1[0][0];
-            let mse0 = nn.train_step(&tx[0], &tt[0], lr);
-            println!(
-                "  [單步] train_step(sample0) mse={:.5} Δw1[0][0]={:.6}",
-                mse0,
-                nn.w1[0][0] - w_before
-            );
-        }
-        if epoch == 0 || epoch == 4 {
-            let alive: (usize, usize) = {
-                let mut a1 = 0usize;
-                let mut n = 0usize;
-                for x in tx.iter().take(200) {
-                    let h1v: Vec<f32> = nn
-                        .w1
-                        .iter()
-                        .zip(nn.b1.iter())
-                        .map(|(row, &bi)| {
-                            row.iter()
-                                .zip(x.iter())
-                                .map(|(&wi, &xi)| wi * xi)
-                                .sum::<f32>()
-                                + bi
-                        })
-                        .map(|v| {
-                            if v > 0.0 {
-                                a1 += 1;
-                                v
-                            } else {
-                                0.0
-                            }
-                        })
-                        .collect();
-                    let _ = &h1v;
-                    n += nn.w1.len();
-                }
-                (a1, n)
-            };
-            println!(
-                "  [診斷 epoch {}] ||w1||={:.4} h1活躍率={:.2}%",
-                epoch + 1,
-                wnorm(&nn.w1),
-                100.0 * alive.0 as f32 / alive.1 as f32
-            );
         }
         if (epoch + 1) % 50 == 0 {
             println!(
@@ -370,7 +306,7 @@ mod tests {
     fn training_reduces_validation_error_dramatically() {
         let (tx, tt) = gen_dataset(800, 7);
         let (vx, vt) = gen_dataset(300, 8);
-        let mut rng = Lcg(9);
+        let mut rng = Rng(9);
         let mut nn = Mlp::new(INPUT_FEATURES, 24, 12, OUTPUT_SCORES);
         init_weights(&mut nn, &mut rng);
         let before = nn.mse_on(&vx, &vt);
@@ -389,7 +325,7 @@ mod tests {
 
     #[test]
     fn expert_scores_in_range() {
-        let mut rng = Lcg(1);
+        let mut rng = Rng(1);
         for _ in 0..200 {
             let a = sample_user(&mut rng);
             for v in expert_scores(&a, &mut rng) {

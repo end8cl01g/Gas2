@@ -11,11 +11,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install minimal stable + wasm32 target
+      - name: Install toolchain (rustfmt + clippy included) & wasm-bindgen
         run: |
-          rustup toolchain install stable --profile minimal --no-self-update
+          rustup toolchain install stable --profile default --no-self-update
           rustup default stable
           rustup target add wasm32-unknown-unknown
+          mkdir -p /tmp/wb && cd /tmp/wb
+          curl -sSfL https://github.com/rustwasm/wasm-bindgen/releases/download/0.2.100/wasm-bindgen-0.2.100-x86_64-unknown-linux-musl.tar.gz | tar xz
+          BIN_DIR="$(find . -type f -name wasm-bindgen | head -1 | xargs dirname)"
+          install -m755 "$BIN_DIR/wasm-bindgen" "$HOME/.cargo/bin/"
+          cargo --version && rustfmt --version && clippy-driver --version && wasm-bindgen --version
 
       - name: Fetch workspace dependencies
         run: cargo fetch --workspace

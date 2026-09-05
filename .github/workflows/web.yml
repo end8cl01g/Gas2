@@ -36,8 +36,12 @@ jobs:
 
       - name: Install wasm-bindgen-cli (GitHub releases, version-pinned)
         run: |
-          curl -sSL https://github.com/rustwasm/wasm-bindgen/releases/download/0.2.100/wasm-bindgen-cli-0.2.100-x86_64-unknown-linux-musl.tar.gz | tar xz
-          echo "$PWD/wasm-bindgen-cli-0.2.100-x86_64-unknown-linux-musl" >> "$GITHUB_PATH"
+          mkdir -p /tmp/wb && cd /tmp/wb
+          curl -sSfL https://github.com/rustwasm/wasm-bindgen/releases/download/0.2.100/wasm-bindgen-0.2.100-x86_64-unknown-linux-musl.tar.gz | tar xz
+          BIN_DIR="$(find . -type f -name wasm-bindgen | head -1 | xargs dirname)"
+          sudo install -m755 "$BIN_DIR/wasm-bindgen" /usr/local/bin/
+          sudo install -m755 "$BIN_DIR/wasm-bindgen-test-runner" /usr/local/bin/ 2>/dev/null || true
+          wasm-bindgen --version
 
       - name: Build wasm bindings
         run: ./scripts/build-wasm.sh

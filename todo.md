@@ -102,7 +102,9 @@ L0 腳手架：cargo workspace、Vite TS 模板、Actions workflow、CI 綠燈�
 ### M6 CI/CD 閉環 🔶（阻塞：GitHub 權限）
 - [x] workflow 檔案撰寫完成（rust.yml / web.yml / toolchain-export.yml）
 - [ ] **等待使用者重連 GitHub（需 workflows 權限）** → 推送 workflows
-- [ ] CI 首次編譯驗證 → toolchain 匯出 → 本地訓練真權重 → 提交
+- [x] workflows 已成功推送並運行（workflows 權限已恢復）
+- [ ] Rust CI 收口中（fmt ✅ → clippy 修復中 → tests 待驗）；Web CI/CD PR 側已全綠
+- [ ] CI 綠燈後 merge → toolchain 匯出 → 本地訓練真權重 → 提交
 - [ ] merge main：自動部署 Pages → 線上煙測（Playwright）→ 失敗自動開 issue
 - [ ] README 徽章生效
 

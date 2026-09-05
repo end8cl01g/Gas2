@@ -14,25 +14,43 @@ type EngineLike = {
 };
 
 const pkg = wasmPkg as unknown as Record<string, unknown>;
-const EngineCtor = pkg.Engine as unknown as new () => EngineLike;
 
-// 相容三種 init 匯出形態：
-// 1) 本地 stub：ESM default 為函式
-// 2) wasm-bindgen nodejs（CJS 經 interop）：namespace.default = exports 物件，
-//    其 .default 為非同步 init、.initSync 為同步 init
+function typeofKey(o: Record<string, unknown>, k: string): string {
+  return `${k}:${typeof o[k]}`;
+}
+
+// 自癒式解析：相容 ESM / CJS-interop / namespace 展開等各種匯出形態，
+// 都失敗時把實際匯出清單放進錯誤訊息（CI annotation 可診斷）。
 function resolveInit(): () => unknown {
-  const d = pkg.default;
-  if (typeof d === 'function') return d as () => unknown;
-  if (d && typeof d === 'object') {
-    const o = d as Record<string, unknown>;
-    if (typeof o.default === 'function') return o.default as () => unknown;
-    if (typeof o.initSync === 'function') return o.initSync as () => unknown;
+  const scopes: Record<string, unknown>[] = [pkg];
+  if (pkg.default && typeof pkg.default === 'object') {
+    scopes.push(pkg.default as Record<string, unknown>);
   }
-  if (typeof pkg.initSync === 'function') return pkg.initSync as () => unknown;
-  throw new Error('無法解析 wasm init 函式');
+  for (const scope of scopes) {
+    for (const [k, v] of Object.entries(scope)) {
+      if (typeof v === 'function' && /^init|^default$/.test(k)) return v as () => unknown;
+    }
+  }
+  for (const scope of scopes) {
+    for (const [k, v] of Object.entries(scope)) {
+      if (typeof v === 'function' && /init/i.test(k)) return v as () => unknown;
+    }
+  }
+  const manifest = scopes.map((s) => Object.keys(s).map((k) => typeofKey(s, k)).join(',')).join(' | ');
+  throw new Error(`無法解析 wasm init 函式。exports = ${manifest}`);
+}
+
+function resolveEngine(): new () => EngineLike {
+  if (typeof pkg.Engine === 'function') return pkg.Engine as new () => EngineLike;
+  if (pkg.default && typeof pkg.default === 'object') {
+    const d = pkg.default as Record<string, unknown>;
+    if (typeof d.Engine === 'function') return d.Engine as new () => EngineLike;
+  }
+  throw new Error(`無法解析 Engine 類別。exports = ${Object.keys(pkg).join(',')}`);
 }
 
 const initFn = resolveInit();
+const EngineCtor = resolveEngine();
 
 beforeAll(async () => {
   await initFn();

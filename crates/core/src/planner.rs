@@ -349,18 +349,18 @@ fn skill_session(idx: usize, stage: u8, s: &Scores, dose: WeekDose) -> Session {
 
 fn focus_zh(week: u8, deload: Option<DeloadKind>, vs: f32, stage_up: bool, step: f32) -> String {
     match deload {
-        Some(DeloadKind::Forced) => format!(
-            "強制減載週：依上週回報（疼痛／過難）組數下調至 ×{vs:.2}，優先恢復與動作品質"
-        ),
+        Some(DeloadKind::Forced) => {
+            format!("強制減載週：依上週回報（疼痛／過難）組數下調至 ×{vs:.2}，優先恢復與動作品質")
+        }
         Some(DeloadKind::Scheduled) if week == TOTAL_WEEKS => {
             format!("重測週（減載 ×{vs:.2}）：完成本週後重新體測，更新個人化路徑")
         }
         Some(DeloadKind::Scheduled) => {
             format!("減載週：組數下調至 ×{vs:.2}（依恢復力決定深度），以恢復與動作品質優先")
         }
-        None if stage_up => format!(
-            "預計升階週：依進步速率投影，動作變化式提前升級；訓練量係數 ×{vs:.2}"
-        ),
+        None if stage_up => {
+            format!("預計升階週：依進步速率投影，動作變化式提前升級；訓練量係數 ×{vs:.2}")
+        }
         None => format!(
             "漸進超載：訓練量係數 ×{vs:.2}（每負荷週 +{:.0}%，由進步速率決定）",
             step * 100.0
@@ -586,7 +586,10 @@ mod tests {
         let plan = build_plan(&assessment(3), &profile([0.3; 5], MID));
         let normal = working_sets(&plan.weeks[2]);
         let deload = working_sets(&plan.weeks[3]);
-        assert!(deload < normal, "減載週總組數 ({deload}) 應低於正常週 ({normal})");
+        assert!(
+            deload < normal,
+            "減載週總組數 ({deload}) 應低於正常週 ({normal})"
+        );
     }
 
     #[test]
@@ -653,7 +656,12 @@ mod tests {
                 for b in &s.blocks {
                     for p in &b.items {
                         let e = exercises::get(&p.exercise_id).unwrap();
-                        assert!((1..=6).contains(&p.sets), "{} sets={}", p.exercise_id, p.sets);
+                        assert!(
+                            (1..=6).contains(&p.sets),
+                            "{} sets={}",
+                            p.exercise_id,
+                            p.sets
+                        );
                         assert!(p.sets <= e.base_sets + 2);
                         assert!(p.reps_lo >= e.rep_lo && p.reps_hi <= e.rep_hi);
                         assert!(p.reps_lo <= p.reps_hi);
@@ -675,10 +683,18 @@ mod tests {
         assert_eq!(plan.current_stage, 0);
         assert_eq!(plan.weeks[0].stage, 0, "第 1 週維持目前階段");
         let stages: Vec<u8> = plan.weeks.iter().map(|w| w.stage).collect();
-        assert!(stages.iter().any(|&s| s == 1), "應出現預計升階週: {stages:?}");
+        assert!(
+            stages.iter().any(|&s| s == 1),
+            "應出現預計升階週: {stages:?}"
+        );
         for (i, w) in plan.weeks.iter().enumerate() {
             let block = (i as u8) / 4;
-            assert!(w.stage <= block, "第 {} 週階段 {} 超過 block 上限", w.week_index, w.stage);
+            assert!(
+                w.stage <= block,
+                "第 {} 週階段 {} 超過 block 上限",
+                w.week_index,
+                w.stage
+            );
         }
         // 非遞減
         assert!(stages.windows(2).all(|p| p[0] <= p[1]), "{stages:?}");
@@ -725,7 +741,10 @@ mod tests {
         assert!(w2.focus_zh.contains("強制減載"));
         let w3 = &plan.weeks[2];
         assert!(!w3.is_deload);
-        assert!(working_sets(w2) < working_sets(w3), "強制減載週組數應低於下一負荷週");
+        assert!(
+            working_sets(w2) < working_sets(w3),
+            "強制減載週組數應低於下一負荷週"
+        );
         // 第 4 週仍是排程減載
         assert_eq!(plan.weeks[3].deload_kind, Some(DeloadKind::Scheduled));
     }

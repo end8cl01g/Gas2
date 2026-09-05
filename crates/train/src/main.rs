@@ -64,7 +64,7 @@ fn expert_profile(a: &Assessment, rng: &mut Rng) -> [f32; OUTPUT_DIMS] {
     // ── 劑量參數規則 ──
     let exp_n = a.experience as f32 / 3.0; // 年資 0–1
     let mob_avg = (a.shoulder_mobility + a.wrist_mobility) as f32 / 10.0; // 活動度 0–1（組織耐受）
-    // 工作容量：耐力型指標（平板、空心、伏地挺身）＋年資；體重偏高略減。×1.4 讓上界接近 1
+                                                                          // 工作容量：耐力型指標（平板、空心、伏地挺身）＋年資；體重偏高略減。×1.4 讓上界接近 1
     let work = 1.4
         * (0.30 * g_plank + 0.25 * g_hollow + 0.25 * g_push + 0.20 * exp_n)
         * (1.0 - 0.10 * bw_over);

@@ -4,7 +4,7 @@ use gas2_core::finetune::recalibrate;
 use gas2_core::model::{Assessment, Focus, PainArea, Scores, WeeklyLog, TOTAL_WEEKS};
 use gas2_core::nn::Mlp;
 use gas2_core::planner::build_plan;
-use gas2_core::{BASELINE_WEIGHTS_JSON, APP_VERSION};
+use gas2_core::{APP_VERSION, BASELINE_WEIGHTS_JSON};
 
 fn assessment(strong: bool) -> Assessment {
     if strong {

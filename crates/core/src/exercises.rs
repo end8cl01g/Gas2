@@ -60,10 +60,7 @@ pub const EXERCISES: &[Exercise] = &[
     Exercise {
         id: "wrist_stretch",
         name_zh: "手腕伸展放鬆",
-        cues_zh: &[
-            "跪姿手背貼地，輕壓 20 秒",
-            "再以掌心貼地前後搖晃伸展",
-        ],
+        cues_zh: &["跪姿手背貼地，輕壓 20 秒", "再以掌心貼地前後搖晃伸展"],
         regression_zh: "減少按壓深度",
         progression_zh: "增加按壓時間至 30–40 秒",
         base_sets: 2,

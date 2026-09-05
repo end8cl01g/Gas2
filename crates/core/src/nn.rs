@@ -20,7 +20,9 @@ pub struct Mlp {
 }
 
 fn relu(v: Vec<f32>) -> Vec<f32> {
-    v.into_iter().map(|x| if x > 0.0 { x } else { 0.0 }).collect()
+    v.into_iter()
+        .map(|x| if x > 0.0 { x } else { 0.0 })
+        .collect()
 }
 
 fn sigmoid(x: f32) -> f32 {
@@ -30,7 +32,13 @@ fn sigmoid(x: f32) -> f32 {
 fn matvec(w: &[Vec<f32>], b: &[f32], x: &[f32]) -> Vec<f32> {
     w.iter()
         .zip(b.iter())
-        .map(|(row, &bi)| row.iter().zip(x.iter()).map(|(&wi, &xi)| wi * xi).sum::<f32>() + bi)
+        .map(|(row, &bi)| {
+            row.iter()
+                .zip(x.iter())
+                .map(|(&wi, &xi)| wi * xi)
+                .sum::<f32>()
+                + bi
+        })
         .collect()
 }
 
@@ -65,7 +73,10 @@ impl Mlp {
         let check = |cond: bool, msg: &str| if cond { Ok(()) } else { Err(msg.to_string()) };
         check(!self.w1.is_empty(), "w1 是空的")?;
         check(self.w1.len() == h1, "w1 列數不符 h1")?;
-        check(self.w1.iter().all(|r| r.len() == input), "w1 行數不符 input")?;
+        check(
+            self.w1.iter().all(|r| r.len() == input),
+            "w1 行數不符 input",
+        )?;
         check(self.b1.len() == h1, "b1 長度不符")?;
         check(self.w2.len() == h2, "w2 列數不符 h2")?;
         check(self.w2.iter().all(|r| r.len() == h1), "w2 行數不符 h1")?;
@@ -73,9 +84,18 @@ impl Mlp {
         check(self.w3.len() == output, "w3 列數不符 output")?;
         check(self.w3.iter().all(|r| r.len() == h2), "w3 行數不符 h2")?;
         check(self.b3.len() == output, "b3 長度不符")?;
-        check(self.w1.iter().flatten().all(|v| v.is_finite()), "w1 有非有限值")?;
-        check(self.w2.iter().flatten().all(|v| v.is_finite()), "w2 有非有限值")?;
-        check(self.w3.iter().flatten().all(|v| v.is_finite()), "w3 有非有限值")?;
+        check(
+            self.w1.iter().flatten().all(|v| v.is_finite()),
+            "w1 有非有限值",
+        )?;
+        check(
+            self.w2.iter().flatten().all(|v| v.is_finite()),
+            "w2 有非有限值",
+        )?;
+        check(
+            self.w3.iter().flatten().all(|v| v.is_finite()),
+            "w3 有非有限值",
+        )?;
         Ok(())
     }
 

@@ -54,7 +54,9 @@ fn expert_scores(a: &Assessment, rng: &mut Lcg) -> [f32; OUTPUT_SCORES] {
     let exp = sat(a.experience as f32 / 2.0) * 0.08;
     let noise = |rng: &mut Lcg| rng.range(-0.03, 0.03);
     [
-        (0.6 * g_push + 0.4 * g_plank).mul_add(1.0 - 0.10 * bw_over, exp + noise(rng)).clamp(0.0, 1.0),
+        (0.6 * g_push + 0.4 * g_plank)
+            .mul_add(1.0 - 0.10 * bw_over, exp + noise(rng))
+            .clamp(0.0, 1.0),
         (0.6 * g_hollow + 0.4 * g_plank + exp + noise(rng)).clamp(0.0, 1.0),
         ((0.45 * g_wsh + 0.30 * g_ww + 0.25 * g_mob) * pen + exp + noise(rng)).clamp(0.0, 1.0),
         ((0.6 * g_hspu + 0.4 * g_pike) * pen + exp + noise(rng)).clamp(0.0, 1.0),
@@ -124,7 +126,12 @@ fn init_weights(nn: &mut Mlp, rng: &mut Lcg) {
     fill(&mut nn.w1, nn.arch[0]);
     fill(&mut nn.w2, nn.arch[1]);
     fill(&mut nn.w3, nn.arch[2]);
-    for v in nn.b1.iter_mut().chain(nn.b2.iter_mut()).chain(nn.b3.iter_mut()) {
+    for v in nn
+        .b1
+        .iter_mut()
+        .chain(nn.b2.iter_mut())
+        .chain(nn.b3.iter_mut())
+    {
         *v = 0.0;
     }
 }
@@ -145,7 +152,8 @@ fn main() {
 
     if check {
         let (vx, vt) = gen_dataset(2000, VAL_SEED);
-        let bytes = std::fs::read(&out_path).unwrap_or_else(|e| panic!("讀取 {out_path} 失敗: {e}"));
+        let bytes =
+            std::fs::read(&out_path).unwrap_or_else(|e| panic!("讀取 {out_path} 失敗: {e}"));
         let nn = Mlp::from_json(std::str::from_utf8(&bytes).expect("weights utf8"))
             .expect("權重結構不合法");
         if !nn.trained {
@@ -210,8 +218,7 @@ fn main() {
     }
 
     nn.trained = true;
-    std::fs::write(&out_path, nn.to_json())
-        .unwrap_or_else(|e| panic!("寫入 {out_path} 失敗: {e}"));
+    std::fs::write(&out_path, nn.to_json()).unwrap_or_else(|e| panic!("寫入 {out_path} 失敗: {e}"));
     println!("權重已寫入 {out_path}");
 }
 
@@ -233,7 +240,10 @@ mod tests {
             }
         }
         let after = nn.mse_on(&vx, &vt);
-        assert!(after < before * 0.5, "40 epochs 應大幅降低誤差: {before} -> {after}");
+        assert!(
+            after < before * 0.5,
+            "40 epochs 應大幅降低誤差: {before} -> {after}"
+        );
         assert!(after < 0.02, "應接近標籤函數: {after}");
     }
 

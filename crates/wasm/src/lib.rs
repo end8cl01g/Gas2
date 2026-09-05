@@ -3,7 +3,7 @@
 
 use gas2_core::model::{Assessment, Plan, RecalibrateResponse, Scores, WeeklyLog};
 use gas2_core::nn::Mlp;
-use gas2_core::{finetune, planner, BASELINE_WEIGHTS_JSON, APP_NAME, APP_VERSION};
+use gas2_core::{finetune, planner, APP_NAME, APP_VERSION, BASELINE_WEIGHTS_JSON};
 use wasm_bindgen::prelude::*;
 
 fn to_js_value_err(e: String) -> JsError {

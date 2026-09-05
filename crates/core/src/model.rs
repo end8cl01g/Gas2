@@ -18,13 +18,8 @@ pub const SCORE_KEYS: [&str; OUTPUT_SCORES] = [
     "compressionPower",
 ];
 
-pub const SCORE_NAMES_ZH: [&str; OUTPUT_SCORES] = [
-    "基礎推力",
-    "核心控制",
-    "倒立平衡",
-    "上肢推撐",
-    "壓撐爆發",
-];
+pub const SCORE_NAMES_ZH: [&str; OUTPUT_SCORES] =
+    ["基礎推力", "核心控制", "倒立平衡", "上肢推撐", "壓撐爆發"];
 
 fn clampf(x: f32, lo: f32, hi: f32) -> f32 {
     x.clamp(lo, hi)

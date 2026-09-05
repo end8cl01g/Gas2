@@ -18,11 +18,31 @@ pub struct StageDef {
 }
 
 pub const STAGES: [StageDef; 5] = [
-    StageDef { index: 0, name_zh: "基礎力量", goal_zh: "建立推撐與核心基礎" },
-    StageDef { index: 1, name_zh: "壓撐與支撐", goal_zh: "發展肩角壓撐與倒立支撐耐受" },
-    StageDef { index: 2, name_zh: "倒立技能", goal_zh: "取得穩定倒立平衡" },
-    StageDef { index: 3, name_zh: "倒立力量", goal_zh: "倒立姿勢下的垂直推力" },
-    StageDef { index: 4, name_zh: "PTH 專項", goal_zh: "組合壓撐與倒立，完成 Press to Handstand" },
+    StageDef {
+        index: 0,
+        name_zh: "基礎力量",
+        goal_zh: "建立推撐與核心基礎",
+    },
+    StageDef {
+        index: 1,
+        name_zh: "壓撐與支撐",
+        goal_zh: "發展肩角壓撐與倒立支撐耐受",
+    },
+    StageDef {
+        index: 2,
+        name_zh: "倒立技能",
+        goal_zh: "取得穩定倒立平衡",
+    },
+    StageDef {
+        index: 3,
+        name_zh: "倒立力量",
+        goal_zh: "倒立姿勢下的垂直推力",
+    },
+    StageDef {
+        index: 4,
+        name_zh: "PTH 專項",
+        goal_zh: "組合壓撐與倒立，完成 Press to Handstand",
+    },
 ];
 
 /// 階段推進門檻（規劃器硬約束）
@@ -147,7 +167,12 @@ fn block_of(kind: BlockKind, ids: &[&str], volume: f32, deload: bool) -> Block {
 }
 
 fn strength_session(idx: usize, stage: u8, s: &Scores, volume: f32, deload: bool) -> Session {
-    let warmup = block_of(BlockKind::Warmup, &["wrist_prep", "shoulder_circles"], 1.0, false);
+    let warmup = block_of(
+        BlockKind::Warmup,
+        &["wrist_prep", "shoulder_circles"],
+        1.0,
+        false,
+    );
     let main = block_of(BlockKind::Main, &main_pair(stage, s), volume, deload);
     let mut core_ids: Vec<&str> = vec![pick_core(s)];
     if stage < 2 {
@@ -162,7 +187,12 @@ fn strength_session(idx: usize, stage: u8, s: &Scores, volume: f32, deload: bool
 }
 
 fn skill_session(idx: usize, stage: u8, s: &Scores, volume: f32, deload: bool) -> Session {
-    let warmup = block_of(BlockKind::Warmup, &["wrist_prep", "shoulder_circles"], 1.0, false);
+    let warmup = block_of(
+        BlockKind::Warmup,
+        &["wrist_prep", "shoulder_circles"],
+        1.0,
+        false,
+    );
     let skill = block_of(BlockKind::Skill, &skill_drills(stage, s), volume, deload);
     let maintain = block_of(BlockKind::Accessory, &[pick_push(s)], volume * 0.7, deload);
     let mobility = block_of(

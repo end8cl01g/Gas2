@@ -114,8 +114,7 @@ pub fn recalibrate(
     let old_stage = planner::stage_for(prev);
     let stage = planner::stage_for(&new_scores);
     let stage_changed = stage != old_stage;
-    let force_deload =
-        !log.pain.is_empty() || (log.focus == Focus::TooHard && adherence < 0.5);
+    let force_deload = !log.pain.is_empty() || (log.focus == Focus::TooHard && adherence < 0.5);
 
     // 5. 說明「改了什麼、為什麼」
     let mut changes = Vec::new();
@@ -219,7 +218,12 @@ mod tests {
     fn too_easy_raises_scores_within_cap() {
         let mut nn = Mlp::from_json(crate::BASELINE_WEIGHTS_JSON).unwrap();
         let prev = Scores::from_array(nn.infer(&assessment().features())).clamped();
-        let r = recalibrate(&mut nn, &assessment(), &log(Focus::TooEasy, vec![], 3, 3), &prev);
+        let r = recalibrate(
+            &mut nn,
+            &assessment(),
+            &log(Focus::TooEasy, vec![], 3, 3),
+            &prev,
+        );
         let p = prev.to_array();
         let n = r.new_scores.to_array();
         for i in 0..OUTPUT_SCORES {
@@ -257,7 +261,12 @@ mod tests {
     fn too_hard_lowers_scores() {
         let mut nn = Mlp::from_json(crate::BASELINE_WEIGHTS_JSON).unwrap();
         let prev = Scores::from_array(nn.infer(&assessment().features())).clamped();
-        let r = recalibrate(&mut nn, &assessment(), &log(Focus::TooHard, vec![], 1, 4), &prev);
+        let r = recalibrate(
+            &mut nn,
+            &assessment(),
+            &log(Focus::TooHard, vec![], 1, 4),
+            &prev,
+        );
         let p = prev.to_array();
         let n = r.new_scores.to_array();
         for i in 0..OUTPUT_SCORES {
@@ -271,7 +280,12 @@ mod tests {
     fn weights_stay_valid_after_finetune() {
         let mut nn = Mlp::from_json(crate::BASELINE_WEIGHTS_JSON).unwrap();
         let prev = Scores::from_array(nn.infer(&assessment().features())).clamped();
-        recalibrate(&mut nn, &assessment(), &log(Focus::TooEasy, vec![], 3, 3), &prev);
+        recalibrate(
+            &mut nn,
+            &assessment(),
+            &log(Focus::TooEasy, vec![], 3, 3),
+            &prev,
+        );
         let json = nn.to_json();
         let back = Mlp::from_json(&json).expect("微調後權重應仍為合法 JSON/結構");
         assert_eq!(back.arch, nn.arch);

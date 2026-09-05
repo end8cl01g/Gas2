@@ -1,5 +1,5 @@
-import { useState } from 'preact/hooks';
-import { SCORE_KEYS, SCORE_NAMES_ZH } from './types';
+import { useEffect, useState } from 'preact/hooks';
+import { DOSING_HINTS_ZH, DOSING_KEYS, DOSING_NAMES_ZH, SCORE_KEYS, SCORE_NAMES_ZH } from './types';
 import type { ChangeNote, Plan } from './types';
 
 const BLOCK_ZH: Record<string, string> = {
@@ -21,8 +21,14 @@ export function PlanView(props: {
   loggedWeeks: number[];
 }) {
   const { plan } = props;
-  const [weekIdx, setWeekIdx] = useState(0);
-  const week = plan.weeks[weekIdx];
+  // 預設顯示「下一個要執行的週次」；課表重算（回報後）時跟著跳到新的錨點週
+  const anchorIdx = Math.min(Math.max((plan.nextWeek ?? 1) - 1, 0), plan.weeks.length - 1);
+  const [weekIdx, setWeekIdx] = useState(anchorIdx);
+  useEffect(() => {
+    setWeekIdx(anchorIdx);
+  }, [anchorIdx, plan]);
+  const week = plan.weeks[Math.min(weekIdx, plan.weeks.length - 1)];
+  const projectedUp = week.stage > plan.currentStage;
 
   return (
     <div class="container">
@@ -66,6 +72,21 @@ export function PlanView(props: {
             <span class="score-val">{Math.round(plan.scores[k] * 100)}</span>
           </div>
         ))}
+        <h3 class="sub" data-testid="dosing-title">
+          劑量參數（神經網絡推論）
+        </h3>
+        <p class="muted small">決定組數、次數落點、組間休息、每週漸進與減載深度</p>
+        {DOSING_KEYS.map((k) => (
+          <div class="score" key={k} data-testid={`dosing-${k}`}>
+            <span class="score-name" title={DOSING_HINTS_ZH[k]}>
+              {DOSING_NAMES_ZH[k]}
+            </span>
+            <div class="bar">
+              <div class="bar-fill alt" style={`width:${Math.round(plan.dosing[k] * 100)}%`} />
+            </div>
+            <span class="score-val">{Math.round(plan.dosing[k] * 100)}</span>
+          </div>
+        ))}
       </section>
 
       <section>
@@ -75,10 +96,18 @@ export function PlanView(props: {
               key={w.weekIndex}
               class={i === weekIdx ? 'chip on' : 'chip'}
               onClick={() => setWeekIdx(i)}
-              title={w.isDeload ? '減載週' : undefined}
+              title={
+                w.deloadKind === 'forced'
+                  ? '強制減載週'
+                  : w.isDeload
+                    ? '減載週'
+                    : w.stage > plan.currentStage
+                      ? '預計升階'
+                      : undefined
+              }
             >
               {w.weekIndex}
-              {w.isDeload ? '↓' : ''}
+              {w.isDeload ? '↓' : w.stage > plan.currentStage ? '↑' : ''}
               {props.loggedWeeks.includes(w.weekIndex) ? '·' : ''}
             </button>
           ))}
@@ -87,11 +116,21 @@ export function PlanView(props: {
         <div class="card week-card">
           <h2 data-testid="week-title">
             第 {week.weekIndex} 週
-            {week.isDeload ? <span class="badge warn">減載</span> : null}
+            {week.deloadKind === 'forced' ? (
+              <span class="badge danger" data-testid="deload-badge">
+                強制減載
+              </span>
+            ) : week.isDeload ? (
+              <span class="badge warn" data-testid="deload-badge">
+                減載
+              </span>
+            ) : null}
+            {projectedUp ? <span class="badge up">預計升階</span> : null}
           </h2>
           <p class="focus">{week.focusZh}</p>
           <p class="muted small">
-            每週 {week.sessionsPerWeek} 次訓練・第 {week.stage + 1} 階段（{week.stageNameZh}）
+            每週 {week.sessionsPerWeek} 次訓練・第 {week.stage + 1} 階段（{week.stageNameZh}）・訓練量 ×
+            {week.volumeScale.toFixed(2)}
           </p>
 
           {week.sessions.map((s, si) => (

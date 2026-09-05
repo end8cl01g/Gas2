@@ -7,8 +7,11 @@
 //!
 //! 「不用 AI」說明：標籤由專家規則系統（可審計的飽和曲線）生成，
 //! 訓練是手寫梯度下降，無任何 ML 框架。
+//!
+//! 標籤共 8 維：5 項能力評分＋3 項劑量參數（工作容量／恢復力／進步速率），
+//! 後者決定課表的組數、次數落點、組間休息、漸進斜率、減載深度與跨週升階投影。
 
-use gas2_core::model::{Assessment, INPUT_FEATURES, OUTPUT_SCORES};
+use gas2_core::model::{Assessment, INPUT_FEATURES, OUTPUT_DIMS, OUTPUT_KEYS};
 use gas2_core::nn::Mlp;
 
 /// SplitMix64：可重現、無外部依賴、無 LCG 的「低狀態陷阱」問題。
@@ -41,9 +44,9 @@ fn sat(x: f32) -> f32 {
     x / (1.0 + x)
 }
 
-/// 專家規則系統：由體測項目推導「真實」能力評分（含微噪聲）。
+/// 專家規則系統：由體測項目推導「真實」能力評分與劑量參數（含微噪聲）。
 /// 這是訓練資料的標籤來源，規則完全可審計。
-fn expert_scores(a: &Assessment, rng: &mut Rng) -> [f32; OUTPUT_SCORES] {
+fn expert_profile(a: &Assessment, rng: &mut Rng) -> [f32; OUTPUT_DIMS] {
     let a = a.sanitized();
     let bw_over = ((a.bodyweight_ratio() - 0.45) / 0.20).clamp(0.0, 1.0);
     let pen = 1.0 - 0.25 * bw_over; // 體重相對身高偏高 → 倒立類吃虧
@@ -57,6 +60,20 @@ fn expert_scores(a: &Assessment, rng: &mut Rng) -> [f32; OUTPUT_SCORES] {
     let g_pike = sat(a.pike_pushup_reps as f32 / 12.0);
     let exp = sat(a.experience as f32 / 2.0) * 0.08;
     let noise = |rng: &mut Rng| rng.range(-0.03, 0.03);
+
+    // ── 劑量參數規則 ──
+    let exp_n = a.experience as f32 / 3.0; // 年資 0–1
+    let mob_avg = (a.shoulder_mobility + a.wrist_mobility) as f32 / 10.0; // 活動度 0–1（組織耐受）
+    // 工作容量：耐力型指標（平板、空心、伏地挺身）＋年資；體重偏高略減。×1.4 讓上界接近 1
+    let work = 1.4
+        * (0.30 * g_plank + 0.25 * g_hollow + 0.25 * g_push + 0.20 * exp_n)
+        * (1.0 - 0.10 * bw_over);
+    // 恢復力：年資、活動度、體重比；每週 6–7 天休息日少 → 下修
+    let day_pen = if a.days_per_week >= 6 { 0.10 } else { 0.0 };
+    let recovery = 0.20 + 0.35 * exp_n + 0.30 * mob_avg + 0.15 * (1.0 - bw_over) - day_pen;
+    // 進步速率：年資與活動度支持較快漸進；靠牆倒立秒數代表結構準備度；體重偏高保守
+    let progression = 0.30 + 0.25 * exp_n + 0.20 * mob_avg + 0.25 * g_wsh - 0.20 * bw_over;
+
     [
         (0.6 * g_push + 0.4 * g_plank)
             .mul_add(1.0 - 0.10 * bw_over, exp + noise(rng))
@@ -65,6 +82,9 @@ fn expert_scores(a: &Assessment, rng: &mut Rng) -> [f32; OUTPUT_SCORES] {
         ((0.45 * g_wsh + 0.30 * g_ww + 0.25 * g_mob) * pen + exp + noise(rng)).clamp(0.0, 1.0),
         ((0.6 * g_hspu + 0.4 * g_pike) * pen + exp + noise(rng)).clamp(0.0, 1.0),
         ((0.45 * g_pike + 0.30 * g_wsh + 0.25 * g_push) * pen + exp + noise(rng)).clamp(0.0, 1.0),
+        (work + noise(rng)).clamp(0.0, 1.0),
+        (recovery + noise(rng)).clamp(0.0, 1.0),
+        (progression + noise(rng)).clamp(0.0, 1.0),
     ]
 }
 
@@ -107,14 +127,14 @@ fn sample_user(rng: &mut Rng) -> Assessment {
     }
 }
 
-fn gen_dataset(n: usize, seed: u64) -> (Vec<[f32; INPUT_FEATURES]>, Vec<[f32; OUTPUT_SCORES]>) {
+fn gen_dataset(n: usize, seed: u64) -> (Vec<[f32; INPUT_FEATURES]>, Vec<[f32; OUTPUT_DIMS]>) {
     let mut rng = Rng(seed);
     let mut xs = Vec::with_capacity(n);
     let mut ts = Vec::with_capacity(n);
     for _ in 0..n {
         let a = sample_user(&mut rng);
         xs.push(a.features());
-        ts.push(expert_scores(&a, &mut rng));
+        ts.push(expert_profile(&a, &mut rng));
     }
     (xs, ts)
 }
@@ -186,7 +206,7 @@ fn main() {
     );
 
     // 診斷基線：只預測目標均值時的 MSE（網絡若無學習，會收斂到此值）
-    let mut t_mean = [0.0f32; OUTPUT_SCORES];
+    let mut t_mean = [0.0f32; OUTPUT_DIMS];
     for t in &tt {
         for (m, v) in t_mean.iter_mut().zip(t.iter()) {
             *m += v / tt.len() as f32;
@@ -202,11 +222,11 @@ fn main() {
         })
         .sum::<f32>()
         / tt.len() as f32
-        / OUTPUT_SCORES as f32;
+        / OUTPUT_DIMS as f32;
     println!("均值基線 MSE = {mean_mse:.5}（學習應顯著低於此值）");
 
     let mut rng = Rng(TRAIN_SEED);
-    let mut nn = Mlp::new(INPUT_FEATURES, 24, 12, OUTPUT_SCORES);
+    let mut nn = Mlp::new(INPUT_FEATURES, 24, 12, OUTPUT_DIMS);
     init_weights(&mut nn, &mut rng);
 
     // ── 微觀診斷：資料與初始化 ──
@@ -254,16 +274,7 @@ fn main() {
     let val = nn.mse_on(&vx, &vt);
     println!("最終驗證集 MSE = {val:.5}");
     // 逐維診斷
-    for (dim, name) in [
-        "basePush",
-        "coreControl",
-        "balanceSkill",
-        "overheadPress",
-        "compressionPower",
-    ]
-    .iter()
-    .enumerate()
-    {
+    for (dim, name) in OUTPUT_KEYS.iter().enumerate() {
         let mut se = 0.0;
         let mut ve = 0.0;
         for (x, t) in vx.iter().zip(vt.iter()) {
@@ -307,7 +318,7 @@ mod tests {
         let (tx, tt) = gen_dataset(800, 7);
         let (vx, vt) = gen_dataset(300, 8);
         let mut rng = Rng(9);
-        let mut nn = Mlp::new(INPUT_FEATURES, 24, 12, OUTPUT_SCORES);
+        let mut nn = Mlp::new(INPUT_FEATURES, 24, 12, OUTPUT_DIMS);
         init_weights(&mut nn, &mut rng);
         let before = nn.mse_on(&vx, &vt);
         for _ in 0..40 {
@@ -324,11 +335,11 @@ mod tests {
     }
 
     #[test]
-    fn expert_scores_in_range() {
+    fn expert_profile_in_range() {
         let mut rng = Rng(1);
         for _ in 0..200 {
             let a = sample_user(&mut rng);
-            for v in expert_scores(&a, &mut rng) {
+            for v in expert_profile(&a, &mut rng) {
                 assert!((0.0..=1.0).contains(&v));
             }
         }

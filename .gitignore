@@ -16,3 +16,6 @@ web/src/wasm-node/
 # misc
 *.log
 .DS_Store
+
+# Python scratch
+__pycache__/

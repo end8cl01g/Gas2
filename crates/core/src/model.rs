@@ -1,16 +1,20 @@
-//! 資料模型：體測輸入、每週回報、課表輸出。
+//! 資料模型：體測輸入、每週回報、神經網絡輸出（能力評分＋劑量參數）、課表輸出。
 //! 所有 JSON 欄位採 camelCase，與前端 TypeScript 型別一一對應。
 
 use serde::{Deserialize, Serialize};
 
 /// 神經網絡輸入特徵數
 pub const INPUT_FEATURES: usize = 12;
-/// 神經網絡輸出能力評分數
-pub const OUTPUT_SCORES: usize = 5;
+/// 能力評分維度（基礎推力、核心控制、倒立平衡、上肢推撐、壓撐爆發）
+pub const ABILITY_DIMS: usize = 5;
+/// 劑量參數維度（工作容量、恢復力、進步速率）
+pub const DOSING_DIMS: usize = 3;
+/// 神經網絡輸出總維度：能力評分 + 劑量參數
+pub const OUTPUT_DIMS: usize = ABILITY_DIMS + DOSING_DIMS;
 /// 課表總週數
 pub const TOTAL_WEEKS: u8 = 12;
 
-pub const SCORE_KEYS: [&str; OUTPUT_SCORES] = [
+pub const SCORE_KEYS: [&str; ABILITY_DIMS] = [
     "basePush",
     "coreControl",
     "balanceSkill",
@@ -18,8 +22,24 @@ pub const SCORE_KEYS: [&str; OUTPUT_SCORES] = [
     "compressionPower",
 ];
 
-pub const SCORE_NAMES_ZH: [&str; OUTPUT_SCORES] =
+pub const SCORE_NAMES_ZH: [&str; ABILITY_DIMS] =
     ["基礎推力", "核心控制", "倒立平衡", "上肢推撐", "壓撐爆發"];
+
+pub const DOSING_KEYS: [&str; DOSING_DIMS] = ["workCapacity", "recovery", "progressionRate"];
+
+pub const DOSING_NAMES_ZH: [&str; DOSING_DIMS] = ["工作容量", "恢復力", "進步速率"];
+
+/// 神經網絡全部輸出鍵（順序 = 輸出層索引）
+pub const OUTPUT_KEYS: [&str; OUTPUT_DIMS] = [
+    "basePush",
+    "coreControl",
+    "balanceSkill",
+    "overheadPress",
+    "compressionPower",
+    "workCapacity",
+    "recovery",
+    "progressionRate",
+];
 
 fn clampf(x: f32, lo: f32, hi: f32) -> f32 {
     x.clamp(lo, hi)
@@ -164,9 +184,19 @@ impl WeeklyLog {
             1.0,
         )
     }
+
+    /// 是否觸發下一週強制減載（硬約束）：任何疼痛，或「太難」且出席率 < 50%
+    pub fn force_deload(&self) -> bool {
+        !self.pain.is_empty() || (self.focus == Focus::TooHard && self.adherence() < 0.5)
+    }
+
+    /// 下一個要執行的週次（1–12）
+    pub fn next_week(&self) -> u8 {
+        (self.sanitized().week_index + 1).min(TOTAL_WEEKS)
+    }
 }
 
-/// 五項能力評分（0–1），由神經網絡輸出
+/// 五項能力評分（0–1），神經網絡輸出前五維
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Scores {
@@ -178,7 +208,7 @@ pub struct Scores {
 }
 
 impl Scores {
-    pub fn from_array(a: [f32; OUTPUT_SCORES]) -> Self {
+    pub fn from_array(a: [f32; ABILITY_DIMS]) -> Self {
         Self {
             base_push: a[0],
             core_control: a[1],
@@ -188,7 +218,7 @@ impl Scores {
         }
     }
 
-    pub fn to_array(&self) -> [f32; OUTPUT_SCORES] {
+    pub fn to_array(&self) -> [f32; ABILITY_DIMS] {
         [
             self.base_push,
             self.core_control,
@@ -200,6 +230,72 @@ impl Scores {
 
     pub fn clamped(&self) -> Self {
         Self::from_array(self.to_array().map(|v| clampf(v, 0.0, 1.0)))
+    }
+}
+
+/// 三項劑量參數（0–1），神經網絡輸出後三維。
+/// 規劃器據此決定組數、次數落點、組間休息、漸進斜率、減載深度與跨週升階投影。
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Dosing {
+    /// 工作容量 → 組數係數與次數落點
+    pub work_capacity: f32,
+    /// 恢復力 → 組間休息長短與減載深度
+    pub recovery: f32,
+    /// 進步速率 → 每負荷週漸進斜率與跨週升階投影
+    pub progression_rate: f32,
+}
+
+impl Dosing {
+    pub fn from_array(a: [f32; DOSING_DIMS]) -> Self {
+        Self {
+            work_capacity: a[0],
+            recovery: a[1],
+            progression_rate: a[2],
+        }
+    }
+
+    pub fn to_array(&self) -> [f32; DOSING_DIMS] {
+        [self.work_capacity, self.recovery, self.progression_rate]
+    }
+
+    pub fn clamped(&self) -> Self {
+        Self::from_array(self.to_array().map(|v| clampf(v, 0.0, 1.0)))
+    }
+}
+
+/// 神經網絡完整輸出：五項能力評分 + 三項劑量參數
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Profile {
+    pub scores: Scores,
+    pub dosing: Dosing,
+}
+
+impl Profile {
+    pub fn from_array(a: [f32; OUTPUT_DIMS]) -> Self {
+        let mut s = [0.0f32; ABILITY_DIMS];
+        s.copy_from_slice(&a[..ABILITY_DIMS]);
+        let mut d = [0.0f32; DOSING_DIMS];
+        d.copy_from_slice(&a[ABILITY_DIMS..]);
+        Self {
+            scores: Scores::from_array(s),
+            dosing: Dosing::from_array(d),
+        }
+    }
+
+    pub fn to_array(&self) -> [f32; OUTPUT_DIMS] {
+        let mut out = [0.0f32; OUTPUT_DIMS];
+        out[..ABILITY_DIMS].copy_from_slice(&self.scores.to_array());
+        out[ABILITY_DIMS..].copy_from_slice(&self.dosing.to_array());
+        out
+    }
+
+    pub fn clamped(&self) -> Self {
+        Self {
+            scores: self.scores.clamped(),
+            dosing: self.dosing.clamped(),
+        }
     }
 }
 
@@ -227,6 +323,43 @@ impl BlockKind {
     }
 }
 
+/// 次數單位
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum RepUnit {
+    Reps,
+    Seconds,
+    PerSide,
+    Attempts,
+    Circles,
+}
+
+impl RepUnit {
+    /// 顯示字串：例「8–10 次」「30–40 秒」「每側 8 次」
+    pub fn format(&self, lo: u16, hi: u16) -> String {
+        let n = if lo == hi {
+            format!("{lo}")
+        } else {
+            format!("{lo}–{hi}")
+        };
+        match self {
+            RepUnit::Reps => format!("{n} 次"),
+            RepUnit::Seconds => format!("{n} 秒"),
+            RepUnit::PerSide => format!("每側 {n} 次"),
+            RepUnit::Attempts => format!("{n} 次嘗試"),
+            RepUnit::Circles => format!("{n} 圈"),
+        }
+    }
+}
+
+/// 減載種類：排程（第 4/8/12 週）或回報觸發（疼痛／過難）
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum DeloadKind {
+    Scheduled,
+    Forced,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Prescription {
@@ -234,7 +367,11 @@ pub struct Prescription {
     pub name_zh: String,
     pub cues_zh: Vec<String>,
     pub sets: u8,
+    /// 顯示用劑量字串（由 reps_lo/reps_hi/unit 組成）
     pub reps: String,
+    pub reps_lo: u16,
+    pub reps_hi: u16,
+    pub unit: RepUnit,
     pub rest_sec: u16,
     pub regression_zh: String,
     pub progression_zh: String,
@@ -258,10 +395,17 @@ pub struct Session {
 #[serde(rename_all = "camelCase")]
 pub struct PlanWeek {
     pub week_index: u8,
+    /// 本週階段（可能高於目前階段：依進步速率投影的預計升階）
     pub stage: u8,
     pub stage_name_zh: String,
     pub is_deload: bool,
+    #[serde(default)]
+    pub deload_kind: Option<DeloadKind>,
     pub sessions_per_week: u8,
+    /// 本週訓練量係數（組數縮放，含減載）
+    pub volume_scale: f32,
+    /// 本週投影能力評分（錨點週之前 = 目前評分）
+    pub projected_scores: Scores,
     pub focus_zh: String,
     pub sessions: Vec<Session>,
 }
@@ -281,6 +425,9 @@ pub struct Plan {
     pub total_weeks: u8,
     pub current_stage: u8,
     pub scores: Scores,
+    pub dosing: Dosing,
+    /// 下一個要執行的週次（回報第 n 週後 = n+1）
+    pub next_week: u8,
     pub summary: PlanSummary,
     pub weeks: Vec<PlanWeek>,
 }
@@ -299,6 +446,7 @@ pub struct ChangeNote {
 pub struct RecalibrateResponse {
     pub plan: Plan,
     pub scores: Scores,
+    pub dosing: Dosing,
     pub weights: String,
     pub changes: Vec<ChangeNote>,
     pub stage_changed: bool,
@@ -392,5 +540,60 @@ mod tests {
             notes: None,
         };
         assert!((log.adherence() - 0.25).abs() < 1e-6);
+        assert!(!log.force_deload(), "剛好＋低出席不觸發強制減載");
+        assert_eq!(log.next_week(), 3);
+    }
+
+    #[test]
+    fn force_deload_rule() {
+        let mut log = WeeklyLog {
+            week_index: 12,
+            sessions_completed: 1,
+            sessions_planned: 4,
+            focus: Focus::TooHard,
+            pain: vec![],
+            notes: None,
+        };
+        assert!(log.force_deload(), "太難＋出席 < 50% 觸發");
+        assert_eq!(log.next_week(), TOTAL_WEEKS, "最後一週不超出範圍");
+        log.sessions_completed = 4;
+        assert!(!log.force_deload(), "太難但出席率高不觸發");
+        log.pain = vec![PainArea::Wrist];
+        assert!(log.force_deload(), "任何疼痛觸發");
+    }
+
+    #[test]
+    fn profile_array_roundtrip_and_clamp() {
+        let arr = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 1.4];
+        let p = Profile::from_array(arr);
+        assert!((p.scores.compression_power - 0.5).abs() < 1e-6);
+        assert!((p.dosing.work_capacity - 0.6).abs() < 1e-6);
+        assert!((p.dosing.progression_rate - 1.4).abs() < 1e-6);
+        assert_eq!(p.to_array(), arr);
+        let c = p.clamped();
+        assert!((c.dosing.progression_rate - 1.0).abs() < 1e-6);
+        let json = serde_json::to_string(&c).unwrap();
+        assert!(json.contains("\"workCapacity\""));
+        assert!(json.contains("\"progressionRate\""));
+        let back: Profile = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, c);
+    }
+
+    #[test]
+    fn rep_unit_format() {
+        assert_eq!(RepUnit::Reps.format(8, 10), "8–10 次");
+        assert_eq!(RepUnit::Reps.format(4, 4), "4 次");
+        assert_eq!(RepUnit::Seconds.format(30, 40), "30–40 秒");
+        assert_eq!(RepUnit::PerSide.format(8, 9), "每側 8–9 次");
+        assert_eq!(RepUnit::Attempts.format(10, 10), "10 次嘗試");
+        assert_eq!(RepUnit::Circles.format(10, 10), "10 圈");
+    }
+
+    #[test]
+    fn output_keys_align_with_struct_order() {
+        assert_eq!(&OUTPUT_KEYS[..ABILITY_DIMS], &SCORE_KEYS[..]);
+        assert_eq!(&OUTPUT_KEYS[ABILITY_DIMS..], &DOSING_KEYS[..]);
+        assert_eq!(SCORE_NAMES_ZH.len(), ABILITY_DIMS);
+        assert_eq!(DOSING_NAMES_ZH.len(), DOSING_DIMS);
     }
 }

@@ -25,8 +25,15 @@ export function App() {
 
   useEffect(() => {
     (async () => {
-      await getEngine();
-      const st = loadState();
+      const engine = await getEngine();
+      let st = loadState();
+      // 舊版 localStorage 課表（無劑量參數／錨點週）→ 以目前引擎重算一次
+      if (st.assessment && (!st.plan || !st.plan.dosing || !st.plan.nextWeek)) {
+        const plan = JSON.parse(engine.assess(JSON.stringify(st.assessment))) as Plan;
+        st = { ...st, plan, weights: engine.export_weights() };
+        saveState(st);
+        setChanges([{ kind: 'migrate', messageZh: '課表已依新版神經網絡（含劑量參數）重算' }]);
+      }
       setState(st);
       setScreen(st.assessment && st.plan ? 'plan' : 'welcome');
     })();
@@ -64,13 +71,27 @@ export function App() {
 
   async function handleImport(data: PersistState) {
     const engine = await getEngine();
+    let notes: ChangeNote[] | null = null;
     if (data.weights) {
-      engine.load_weights(data.weights);
+      try {
+        engine.load_weights(data.weights);
+      } catch {
+        // 舊版權重（輸出維度不同）：重置回基線，並提示
+        engine.reset_weights();
+        data = { ...data, weights: engine.export_weights() };
+        notes = [{ kind: 'reset', messageZh: '備份內的權重為舊版格式，已改用目前基線權重' }];
+      }
+    }
+    // 舊版課表缺少劑量參數／錨點週 → 以目前引擎重算，避免畫面欄位缺漏
+    if (data.assessment && (!data.plan || !data.plan.dosing || !data.plan.nextWeek)) {
+      const plan = JSON.parse(engine.assess(JSON.stringify(data.assessment))) as Plan;
+      data = { ...data, plan, weights: engine.export_weights() };
+      notes = [...(notes ?? []), { kind: 'migrate', messageZh: '課表已依新版神經網絡（含劑量參數）重算' }];
     }
     setState(data);
     saveState(data);
     setSettingsOpen(false);
-    setChanges(null);
+    setChanges(notes);
     setScreen(data.assessment && data.plan ? 'plan' : 'welcome');
   }
 
@@ -120,7 +141,9 @@ export function App() {
 
   const lastLog = state.logs.length > 0 ? state.logs[state.logs.length - 1] : null;
   const plan = state.plan as Plan;
-  const nextLogWeek = lastLog ? Math.min(lastLog.weekIndex + 1, plan.totalWeeks) : 1;
+  // 回報週次以課表錨點為準（引擎在回報後把 nextWeek 推進到 n+1）；舊版課表退回用回報紀錄推算
+  const nextLogWeek =
+    plan.nextWeek ?? (lastLog ? Math.min(lastLog.weekIndex + 1, plan.totalWeeks) : 1);
   return (
     <div>
       <PlanView
